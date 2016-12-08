@@ -24,9 +24,11 @@ define('plupload/ChunkUploader', [
     'moxie/xhr/FormData'
 ], function(Basic, Collection, Queueable, XMLHttpRequest, FormData) {
 
-    function ChunkUploader(blob, options) {
+    function ChunkUploader(blob, options, chunkInfo) {
         var _xhr;
+        var _options;
         var _blob = blob;
+        var _chunkInfo = chunkInfo; 
 
         Queueable.call(this);
 
@@ -42,7 +44,7 @@ define('plupload/ChunkUploader', [
                 var formData;
 
                 // have the options ovverride local to start() method only
-                var _options = options ? Basic.extendImmutable({}, this.getOptions(), options) : this.getOptions();
+                _options = options ? Basic.extendImmutable({}, this.getOptions(), options) : this.getOptions();
 
                 ChunkUploader.prototype.start.call(this);
 
@@ -77,7 +79,7 @@ define('plupload/ChunkUploader', [
                 };
 
 
-                url = _options.multipart ? _options.url : buildUrl(_options.url, _options.params);
+                url = self.getChunkUploadUrl();
                 _xhr.open(_options.http_method, url, true);
 
 
@@ -92,7 +94,7 @@ define('plupload/ChunkUploader', [
                 if (_options.multipart) {
                     formData = new FormData();
 
-                    if (!Basic.isEmptyObj(_options.params)) {
+                    if (_options.multipart_append_params && !Basic.isEmptyObj(_options.params)) {
                         Basic.each(_options.params, function(val, key) {
                             formData.append(key, val);
                         });
@@ -117,6 +119,14 @@ define('plupload/ChunkUploader', [
                 if (_xhr) {
                     _xhr.abort();
                     _xhr = null;
+                }
+            },
+
+            getChunkUploadUrl: function () {
+                if (typeof(_options.chunk_upload_url) === 'function') {
+                    return _options.chunk_upload_url(_chunkInfo)
+                } else {
+                    return _options.multipart ? _options.url : buildUrl(_options.url, _options.params);
                 }
             }
         });

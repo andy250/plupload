@@ -252,10 +252,11 @@ define('plupload/Uploader', [
 					max_file_size: 0
 				},
 				// headers: false, // Plupload had a required feature with the same name, comment it to avoid confusion
-				max_upload_slots: 1,
+				max_slots: 1,
 				max_resize_slots: 1,
 				multipart: true,
 				multipart_params: {}, // deprecated, use - params,
+				multipart_append_params: true,
 				// @since 3
 				params: {},
 				// @since 2.3
@@ -266,7 +267,8 @@ define('plupload/Uploader', [
 				send_chunk_number: true, // whether to send chunks and chunk numbers, instead of total and offset bytes
 				max_retries: 0,
 				resize: false,
-				backward_compatibility: true
+				backward_compatibility: true,
+				chunk_upload_url: null
 			},
 			options
 		);
@@ -410,6 +412,10 @@ define('plupload/Uploader', [
 
 						_queueUpload = new QueueUpload(queueOpts);
 						_queueResize = new QueueResize(queueOpts);
+
+						_queueUpload.bind('chunkuploaded', function (sender, data) {
+							self.trigger('chunkuploaded', data);
+						});
 
 						self.trigger('Init', {
 							ruid: runtime.uid,

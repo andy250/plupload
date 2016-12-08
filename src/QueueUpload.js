@@ -37,24 +37,23 @@ define('plupload/QueueUpload', [
                 url: false,
                 chunk_size: 0,
                 multipart: true,
+                multipart_append_params: true,
                 http_method: 'POST',
                 params: {},
                 headers: false,
                 file_data_name: 'file',
                 send_file_name: true,
-                stop_on_fail: true
+                stop_on_fail: true,
+                chunk_upload_url: null
             });
 
             this.setOption = function(option, value) {
                 if (typeof(option) !== 'object') {
-                    if (option == 'max_upload_slots') {
-                        option = 'max_slots';
-                    }
                     if (!this._options.hasOwnProperty(option)) {
                         return;
                     }
                 }
-                QueueUpload.prototype.setOption.apply(this, arguments);
+                QueueUpload.prototype.setOption.call(this, option, value);
             };
 
             this.setOptions(options);

@@ -157,6 +157,10 @@ define('plupload/File', [
                     self.progress(e.loaded, e.total);
                 });
 
+                up.bind('chunkuploaded', function(e, info, file) {
+                    self.chunkuploaded(info, file);
+                });
+
                 up.bind('done', function(e, result) {
                     self.done(result);
                 });
@@ -173,6 +177,13 @@ define('plupload/File', [
             destroy: function() {
                 File.prototype.destroy.call(this);
                 _file = null;
+            },
+
+            chunkuploaded: function (info, file) {
+                queueUpload.trigger('chunkuploaded', {
+                    file: file,
+                    info: info
+                });
             }
         });
     }

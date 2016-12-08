@@ -34,6 +34,7 @@ define('plupload/FileUploader', [
 			url: false,
 			chunk_size: 0,
 			multipart: true,
+			multipart_append_params: true,
 			http_method: 'POST',
 			params: {},
 			headers: false,
@@ -79,7 +80,7 @@ define('plupload/FileUploader', [
 					_totalChunks = Math.ceil(_file.size / self._options.chunk_size);
 					self.uploadChunk(false, false, true);
 				} else {
-					up = new ChunkUploader(_file, self._options);
+					up = new ChunkUploader(_file, self._options, self.chunkInfo(0));
 
 					up.bind('progress', function(e) {
 						self.progress(e.loaded, e.total);
@@ -100,9 +101,8 @@ define('plupload/FileUploader', [
 
 			uploadChunk: function(seq, options, dontStop) {
 				var self = this;
-				var chunkSize = this.getOption('chunk_size');
 				var up;
-				var chunk = {};
+				var chunk;
 				var _options;
 
 				if (options) {
@@ -111,10 +111,7 @@ define('plupload/FileUploader', [
 					Basic.extendImmutable(this._options, options);
 				}
 
-				chunk.seq = parseInt(seq, 10) || getNextChunk();
-				chunk.start = chunk.seq * chunkSize;
-				chunk.end = Math.min(chunk.start + chunkSize, _file.size);
-				chunk.total = _file.size;
+				chunk = self.chunkInfo(seq);
 
 				// do not proceed for weird chunks
 				if (chunk.start < 0 || chunk.start >= _file.size) {
@@ -128,7 +125,7 @@ define('plupload/FileUploader', [
 					}
 				});
 
-				up = new ChunkUploader(_file.slice(chunk.start, chunk.end, _file.type), _options);
+				up = new ChunkUploader(_file.slice(chunk.start, chunk.end, _file.type), _options, chunk);
 
 				up.bind('progress', function(e) {
 					self.progress(calcProcessed() + e.loaded, _file.size);
@@ -151,7 +148,7 @@ define('plupload/FileUploader', [
 						state: Queueable.DONE
 					}, chunk));
 
-					self.trigger('chunkuploaded', Basic.extendImmutable({}, chunk, result));
+					self.trigger('chunkuploaded', Basic.extendImmutable({}, chunk, result), Basic.extendImmutable({}, _file));
 
 					if (calcProcessed() >= _file.size) {
 						self.progress(_file.size, _file.size);
@@ -166,7 +163,6 @@ define('plupload/FileUploader', [
 				up.bind('processed', function() {
 					this.destroy();
 				});
-
 
 				_chunks.add(chunk.seq, Basic.extend({
 					state: Queueable.PROCESSING
@@ -189,6 +185,25 @@ define('plupload/FileUploader', [
 				FileUploader.prototype.setOption.apply(this, arguments);
 			},
 
+			chunkInfo: function (seq) {
+				var start;
+				var end;
+				var chunkSize = this.getOption('chunk_size');
+
+				seq = parseInt(seq, 10) || getNextChunk();
+				start = seq * chunkSize;
+				end = Math.min(start + chunkSize, _file.size);
+				
+				return {
+					seq: seq,
+					start: start,
+					end: end,
+					size: end - start,
+					chunks: _totalChunks, 
+					filesize: _file.size,
+					filename: _file.name
+				};
+			},
 
 			destroy: function() {
 				FileUploader.prototype.destroy.call(this);
