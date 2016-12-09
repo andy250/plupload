@@ -845,7 +845,16 @@ define('plupload/Uploader', [
 			this.bind('BeforeUpload', onBeforeUpload);
 
 			this.bind('Done', function(up) {
-				up.trigger('UploadComplete');
+				var trigger = false;
+				plupload.each(up.files, function (f) {
+					if (!f.completeTriggered) {
+						f.completeTriggered = true;
+						trigger = true;
+					}
+				});
+				if (trigger) {
+					up.trigger('UploadComplete');
+				}
 			});
 
 			this.bind('Error', onError);

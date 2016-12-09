@@ -1,16 +1,19 @@
-/**
- * Plupload - multi-runtime File Uploader
- * v3.0-beta1
- *
- * Copyright 2013, Moxiecode Systems AB
- * Released under GPL License.
- *
- * License: http://www.plupload.com/license
- * Contributing: http://www.plupload.com/contributing
- *
- * Date: 2016-08-24
- */
 ;var MXI_DEBUG = true;
+;(function (global, factory) {
+	var extract = function() {
+		var ctx = {};
+		factory.apply(ctx, arguments);
+		return ctx.plupload;
+	};
+	
+	if (typeof define === "function" && define.amd) {
+		define("plupload", [], extract);
+	} else if (typeof module === "object" && module.exports) {
+		module.exports = extract();
+	} else {
+		global.plupload = extract();
+	}
+}(this || window, function() {
 /**
  * Compiled inline version. (Library mode)
  */
@@ -135,7 +138,7 @@ define('moxie/core/utils/Basic', [], function() {
 		// the snippet below is awesome, however it fails to detect null, undefined and arguments types in IE lte 8
 		return ({}).toString.call(o).match(/\s([a-z|A-Z]+)/)[1].toLowerCase();
 	}
-		
+
 	/**
 	Extends the specified object with another object(s).
 
@@ -146,7 +149,7 @@ define('moxie/core/utils/Basic', [], function() {
 	@return {Object} Same as target, the extended object.
 	*/
 	function extend() {
-		return merge(false, arguments);
+		return merge(false, false, arguments);
 	}
 
 
@@ -160,24 +163,51 @@ define('moxie/core/utils/Basic', [], function() {
 	@return {Object} Same as target, the extended object.
 	*/
 	function extendIf() {
-		return merge(true, arguments);
+		return merge(true, false, arguments);
 	}
 
 
+	function extendImmutable() {
+		return merge(false, true, arguments);
+	}
 
-	function merge(strict, args) {
+
+	function extendImmutableIf() {
+		return merge(true, true, arguments);
+	}
+
+
+	function shallowCopy(obj) {
+		switch (typeOf(obj)) {
+			case 'array':
+				return Array.prototype.slice.call(obj);
+
+			case 'object':
+				return extend({}, obj);
+		}
+		return obj;
+	}
+
+
+	function merge(strict, immutable, args) {
 		var undef;
 		var target = args[0];
 
 		each(args, function(arg, i) {
 			if (i > 0) {
 				each(arg, function(value, key) {
+					var isComplex = inArray(typeOf(value), ['array', 'object']) !== -1;
+
 					if (value === undef || strict && target[key] === undef) {
 						return true;
 					}
 
-					if (typeOf(target[key]) === typeOf(value) && inArray(typeOf(value), ['array', 'object']) !== -1) {
-						merge(strict, [target[key], value]);
+					if (isComplex && immutable) {
+						value = shallowCopy(value);
+					}
+
+					if (typeOf(target[key]) === typeOf(value) && isComplex) {
+						merge(strict, immutable, [target[key], value]);
 					} else {
 						target[key] = value;
 					}
@@ -191,7 +221,7 @@ define('moxie/core/utils/Basic', [], function() {
 
 	/**
 	A way to inherit one `class` from another in a consisstent way (more or less)
-	
+
 	@method inherit
 	@static
 	@since >1.4.1
@@ -219,7 +249,7 @@ define('moxie/core/utils/Basic', [], function() {
 		return child;
 	}
 
-		
+
 	/**
 	Executes the callback function for each item in array/object. If you return false in the
 	callback it will break the loop.
@@ -261,7 +291,7 @@ define('moxie/core/utils/Basic', [], function() {
 
 	/**
 	Checks if object is empty.
-	
+
 	@method isEmptyObj
 	@static
 	@param {Object} o Object to check.
@@ -318,7 +348,7 @@ define('moxie/core/utils/Basic', [], function() {
 
 	/**
 	Recieve an array of functions (usually async) to call in parallel, each  function
-	receives a callback as first argument that it should call, when it completes. After 
+	receives a callback as first argument that it should call, when it completes. After
 	everything is complete, main callback is called. Passing truthy value to the
 	callback as a first argument will interrupt the process and invoke main callback
 	immediately.
@@ -336,7 +366,7 @@ define('moxie/core/utils/Basic', [], function() {
 				if (error) {
 					return cb(error);
 				}
-				
+
 				var args = [].slice.call(arguments);
 				args.shift(); // strip error - undefined or not
 
@@ -346,15 +376,15 @@ define('moxie/core/utils/Basic', [], function() {
 				if (count === num) {
 					cbArgs.unshift(null);
 					cb.apply(this, cbArgs);
-				} 
+				}
 			});
 		});
 	}
-	
-	
+
+
 	/**
 	Find an element in array and return it's index if present, otherwise return -1.
-	
+
 	@method inArray
 	@static
 	@param {Mixed} needle Element to find
@@ -366,7 +396,7 @@ define('moxie/core/utils/Basic', [], function() {
 			if (Array.prototype.indexOf) {
 				return Array.prototype.indexOf.call(array, needle);
 			}
-		
+
 			for (var i = 0, length = array.length; i < length; i++) {
 				if (array[i] === needle) {
 					return i;
@@ -400,7 +430,7 @@ define('moxie/core/utils/Basic', [], function() {
 		for (var i in needles) {
 			if (inArray(needles[i], array) === -1) {
 				diff.push(needles[i]);
-			}	
+			}
 		}
 		return diff.length ? diff : false;
 	}
@@ -424,11 +454,11 @@ define('moxie/core/utils/Basic', [], function() {
 		});
 		return result.length ? result : null;
 	}
-	
-	
+
+
 	/**
 	Forces anything into an array.
-	
+
 	@method toArray
 	@static
 	@param {Object} obj Object with length field.
@@ -443,14 +473,14 @@ define('moxie/core/utils/Basic', [], function() {
 
 		return arr;
 	}
-	
-			
+
+
 	/**
 	Generates an unique ID. The only way a user would be able to get the same ID is if the two persons
-	at the same exact millisecond manage to get the same 5 random numbers between 0-65535; it also uses 
-	a counter so each ID is guaranteed to be unique for the given page. It is more probable for the earth 
+	at the same exact millisecond manage to get the same 5 random numbers between 0-65535; it also uses
+	a counter so each ID is guaranteed to be unique for the given page. It is more probable for the earth
 	to be hit with an asteroid.
-	
+
 	@method guid
 	@static
 	@param {String} prefix to prepend (by default 'o' will be prepended).
@@ -459,22 +489,22 @@ define('moxie/core/utils/Basic', [], function() {
 	*/
 	var guid = (function() {
 		var counter = 0;
-		
+
 		return function(prefix) {
 			var guid = new Date().getTime().toString(32), i;
 
 			for (i = 0; i < 5; i++) {
 				guid += Math.floor(Math.random() * 65535).toString(32);
 			}
-			
+
 			return (prefix || 'o_') + guid + (counter++).toString(32);
 		};
 	}());
-	
+
 
 	/**
 	Trims white spaces around the string
-	
+
 	@method trim
 	@static
 	@param {String} str
@@ -490,7 +520,7 @@ define('moxie/core/utils/Basic', [], function() {
 
 	/**
 	Parses the specified size string into a byte value. For example 10kb becomes 10240.
-	
+
 	@method parseSizeStr
 	@static
 	@param {String/Number} size String to parse or number to just pass through.
@@ -500,7 +530,7 @@ define('moxie/core/utils/Basic', [], function() {
 		if (typeof(size) !== 'string') {
 			return size;
 		}
-		
+
 		var muls = {
 				t: 1099511627776,
 				g: 1073741824,
@@ -512,7 +542,7 @@ define('moxie/core/utils/Basic', [], function() {
 		size = /^([0-9\.]+)([tmgk]?)$/.exec(size.toLowerCase().replace(/[^0-9\.tmkg]/g, ''));
 		mul = size[2];
 		size = +size[1];
-		
+
 		if (muls.hasOwnProperty(mul)) {
 			size *= muls[mul];
 		}
@@ -534,22 +564,24 @@ define('moxie/core/utils/Basic', [], function() {
 			return typeOf(value) !== 'undefined' ? value : '';
 		});
 	}
-	
-	
-	
+
+
+
 	function delay(cb, timeout) {
 		var self = this;
 		setTimeout(function() {
 			cb.call(self);
 		}, timeout || 1);
 	}
-	
+
 
 	return {
 		guid: guid,
 		typeOf: typeOf,
 		extend: extend,
 		extendIf: extendIf,
+		extendImmutable: extendImmutable,
+		extendImmutableIf: extendImmutableIf,
 		inherit: inherit,
 		each: each,
 		isEmptyObj: isEmptyObj,
@@ -2015,7 +2047,7 @@ define('moxie/core/EventTarget', [
 	@class moxie/core/EventTarget
 	@constructor EventTarget
 	*/
-	function EventTarget() {				
+	function EventTarget() {
 		/**
 		Unique id of the event dispatcher, usually overriden by children
 
@@ -2027,7 +2059,7 @@ define('moxie/core/EventTarget', [
 
 
 	Basic.extend(EventTarget.prototype, {
-					
+
 		/**
 		Can be called from within a child  in order to acquire uniqie id in automated manner
 
@@ -2055,9 +2087,9 @@ define('moxie/core/EventTarget', [
 			if (!this.hasOwnProperty('uid')) {
 				this.uid = Basic.guid('uid_');
 			}
-			
+
 			type = Basic.trim(type);
-			
+
 			if (/\s/.test(type)) {
 				// multiple event types were passed for one handler
 				Basic.each(type.split(/\s+/), function(type) {
@@ -2065,31 +2097,37 @@ define('moxie/core/EventTarget', [
 				});
 				return;
 			}
-			
+
 			type = type.toLowerCase();
 			priority = parseInt(priority, 10) || 0;
-			
+
 			list = eventpool[this.uid] && eventpool[this.uid][type] || [];
 			list.push({fn : fn, priority : priority, scope : scope || this});
-			
+
 			if (!eventpool[this.uid]) {
 				eventpool[this.uid] = {};
 			}
 			eventpool[this.uid][type] = list;
 		},
-		
+
 		/**
 		Check if any handlers were registered to the specified event
 
 		@method hasEventListener
-		@param {String} type Type or basically a name of the event to check
+		@param {String} [type] Type or basically a name of the event to check
 		@return {Mixed} Returns a handler if it was found and false, if - not
 		*/
 		hasEventListener: function(type) {
-			var list = type ? eventpool[this.uid] && eventpool[this.uid][type] : eventpool[this.uid];
+			var list;
+			if (type) {
+				type = type.toLowerCase();
+				list = eventpool[this.uid] && eventpool[this.uid][type];
+			} else {
+				list = eventpool[this.uid];
+			}
 			return list ? list : false;
 		},
-		
+
 		/**
 		Unregister the handler from the event, or if former was not specified - unregister all handlers
 
@@ -2127,7 +2165,7 @@ define('moxie/core/EventTarget', [
 				// delete event list if it has become empty
 				if (!list.length) {
 					delete eventpool[this.uid][type];
-					
+
 					// and object specific entry in a hash if it has no more listeners attached
 					if (Basic.isEmptyObj(eventpool[this.uid])) {
 						delete eventpool[this.uid];
@@ -2135,7 +2173,7 @@ define('moxie/core/EventTarget', [
 				}
 			}
 		},
-		
+
 		/**
 		Remove all event handlers from the object
 
@@ -2146,7 +2184,7 @@ define('moxie/core/EventTarget', [
 				delete eventpool[this.uid];
 			}
 		},
-		
+
 		/**
 		Dispatch the event
 
@@ -2157,7 +2195,7 @@ define('moxie/core/EventTarget', [
 		*/
 		dispatchEvent: function(type) {
 			var uid, list, args, tmpEvt, evt = {}, result = true, undef;
-			
+
 			if (Basic.typeOf(type) !== 'string') {
 				// we can't use original object directly (because of Silverlight)
 				tmpEvt = type;
@@ -2174,7 +2212,7 @@ define('moxie/core/EventTarget', [
 					throw new x.EventException(x.EventException.UNSPECIFIED_EVENT_TYPE_ERR);
 				}
 			}
-			
+
 			// check if event is meant to be dispatched on an object having specific uid
 			if (type.indexOf('::') !== -1) {
 				(function(arr) {
@@ -2184,24 +2222,24 @@ define('moxie/core/EventTarget', [
 			} else {
 				uid = this.uid;
 			}
-			
+
 			type = type.toLowerCase();
-							
+
 			list = eventpool[uid] && eventpool[uid][type];
 
 			if (list) {
 				// sort event list by prority
 				list.sort(function(a, b) { return b.priority - a.priority; });
-				
+
 				args = [].slice.call(arguments);
-				
+
 				// first argument will be pseudo-event object
 				args.shift();
 				evt.type = type;
 				args.unshift(evt);
 
 				if (MXI_DEBUG && Env.debug.events) {
-					Env.log("Event '%s' fired on %u", evt.type, uid);	
+					Env.log("Event '%s' fired on %u", evt.type, uid);
 				}
 
 				// Dispatch event to all listeners
@@ -2248,7 +2286,7 @@ define('moxie/core/EventTarget', [
 				return fn.apply(this, arguments);
 			}, priority, scope);
 		},
-		
+
 		/**
 		Alias for addEventListener
 
@@ -2258,7 +2296,7 @@ define('moxie/core/EventTarget', [
 		bind: function() {
 			this.addEventListener.apply(this, arguments);
 		},
-		
+
 		/**
 		Alias for removeEventListener
 
@@ -2268,7 +2306,7 @@ define('moxie/core/EventTarget', [
 		unbind: function() {
 			this.removeEventListener.apply(this, arguments);
 		},
-		
+
 		/**
 		Alias for removeAllEventListeners
 
@@ -2278,7 +2316,7 @@ define('moxie/core/EventTarget', [
 		unbindAll: function() {
 			this.removeAllEventListeners.apply(this, arguments);
 		},
-		
+
 		/**
 		Alias for dispatchEvent
 
@@ -2288,7 +2326,7 @@ define('moxie/core/EventTarget', [
 		trigger: function() {
 			return this.dispatchEvent.apply(this, arguments);
 		},
-		
+
 
 		/**
 		Handle properties of on[event] type.
@@ -2310,15 +2348,15 @@ define('moxie/core/EventTarget', [
 			Basic.each(dispatches, function(prop) {
 				prop = 'on' + prop.toLowerCase(prop);
 				if (Basic.typeOf(self[prop]) === 'undefined') {
-					self[prop] = null; 
+					self[prop] = null;
 				}
 			});
 		}
-		
+
 	});
 
 
-	EventTarget.instance = new EventTarget(); 
+	EventTarget.instance = new EventTarget();
 
 	return EventTarget;
 });
@@ -3198,6 +3236,7 @@ define('moxie/runtime/RuntimeClient', [
 						// jailbreak ...
 						setTimeout(function() {
 							runtime.clients++;
+							comp.ruid = runtime.uid;
 							// this will be triggered on component
 							comp.trigger('RuntimeInit', runtime);
 						}, 1);
@@ -3244,6 +3283,7 @@ define('moxie/runtime/RuntimeClient', [
 				if (ruid) {
 					runtime = Runtime.getRuntime(ruid);
 					if (runtime) {
+						comp.ruid = ruid;
 						runtime.clients++;
 						return runtime;
 					} else {
@@ -4370,11 +4410,10 @@ define('plupload', [
 		 * Plupload version will be replaced on build.
 		 *
 		 * @property VERSION
-		 * @for Plupload
 		 * @static
 		 * @final
 		 */
-		VERSION: '3.0-beta1',
+		VERSION: '@@version@@',
 
 		/**
 		 * The state of the queue before it has started and after it has finished
@@ -4595,7 +4634,7 @@ define('plupload', [
 
 		/**
 		Recieve an array of functions (usually async) to call in parallel, each  function
-		receives a callback as first argument that it should call, when it completes. After 
+		receives a callback as first argument that it should call, when it completes. After
 		everything is complete, main callback is called. Passing truthy value to the
 		callback as a first argument will interrupt the process and invoke main callback
 		immediately.
@@ -4622,7 +4661,7 @@ define('plupload', [
 
 		/**
 		 * Get array of DOM Elements by their ids.
-		 * 
+		 *
 		 * @method get
 		 * @param {String} id Identifier of the DOM Element
 		 * @return {Array}
@@ -4631,13 +4670,13 @@ define('plupload', [
 			var els = [],
 				el;
 
-			if (plupload.typeOf(ids) !== 'array') {
+			if (Basic.typeOf(ids) !== 'array') {
 				ids = [ids];
 			}
 
 			var i = ids.length;
 			while (i--) {
-				el = plupload.get(ids[i]);
+				el = Dom.get(ids[i]);
 				if (el) {
 					els.push(el);
 				}
@@ -4891,7 +4930,7 @@ define('plupload', [
 		buildUrl: function(url, items) {
 			var query = '';
 
-			plupload.each(items, function(value, name) {
+			Basic.each(items, function(value, name) {
 				query += (query ? '&' : '') + encodeURIComponent(name) + '=' + encodeURIComponent(value);
 			});
 
@@ -4917,32 +4956,32 @@ define('plupload', [
 
 			size = parseInt(size, 10);
 			if (isNaN(size)) {
-				return plupload.translate('N/A');
+				return I18n.translate('N/A');
 			}
 
 			var boundary = Math.pow(1024, 4);
 
 			// TB
 			if (size > boundary) {
-				return round(size / boundary, 1) + " " + plupload.translate('tb');
+				return round(size / boundary, 1) + " " + I18n.translate('tb');
 			}
 
 			// GB
 			if (size > (boundary /= 1024)) {
-				return round(size / boundary, 1) + " " + plupload.translate('gb');
+				return round(size / boundary, 1) + " " + I18n.translate('gb');
 			}
 
 			// MB
 			if (size > (boundary /= 1024)) {
-				return round(size / boundary, 1) + " " + plupload.translate('mb');
+				return round(size / boundary, 1) + " " + I18n.translate('mb');
 			}
 
 			// KB
 			if (size > 1024) {
-				return Math.round(size / 1024) + " " + plupload.translate('kb');
+				return Math.round(size / 1024) + " " + I18n.translate('kb');
 			}
 
-			return size + " " + plupload.translate('b');
+			return size + " " + I18n.translate('b');
 		},
 
 		/**
@@ -4971,15 +5010,17 @@ define('plupload', [
 		/**
 		Parent object for all event dispatching components and objects
 
-		@class plupload/EventTarget
-		@constructor EventTarget
+		@class plupload.EventTarget
+		@private
+		@constructor
 		*/
 		EventTarget: EventTarget,
 
 		/**
 		Common set of methods and properties for every runtime instance
 
-		@class plupload/Runtime
+		@class plupload.Runtime
+		@private
 
 		@param {Object} options
 		@param {String} type Sanitized name of the runtime
@@ -4994,7 +5035,8 @@ define('plupload', [
 		converts selected files to _File_ objects, to be used in conjunction with _Image_, preloaded in memory
 		with _FileReader_ or uploaded to a server through _XMLHttpRequest_.
 
-		@class plupload/FileInput
+		@class plupload.FileInput
+		@private
 		@constructor
 		@extends EventTarget
 		@uses RuntimeClient
@@ -5004,7 +5046,7 @@ define('plupload', [
 			@param {String} [options.file='file'] Name of the file field (not the filename).
 			@param {Boolean} [options.multiple=false] Enable selection of multiple files.
 			@param {Boolean} [options.directory=false] Turn file input into the folder input (cannot be both at the same time).
-			@param {String|DOMElement} [options.container] DOM Element to use as a container for file-picker. Defaults to parentNode 
+			@param {String|DOMElement} [options.container] DOM Element to use as a container for file-picker. Defaults to parentNode
 			for _browse\_button_.
 			@param {Object|String} [options.required_caps] Set of required capabilities, that chosen runtime must support.
 		*/
@@ -5014,8 +5056,9 @@ define('plupload', [
 		Utility for preloading o.Blob/o.File objects in memory. By design closely follows [W3C FileReader](http://www.w3.org/TR/FileAPI/#dfn-filereader)
 		interface. Where possible uses native FileReader, where - not falls back to shims.
 
-		@class plupload/FileReader
-		@constructor FileReader
+		@class plupload.FileReader
+		@private
+		@constructor
 		@extends EventTarget
 		@uses RuntimeClient
 		*/
@@ -5041,7 +5084,7 @@ define('plupload', [
 Helper collection class - in a way a mix of object and array
 
 @contsructor
-@class plupload/core/Collection
+@class plupload.core.Collection
 @private
 */
 define('plupload/core/Collection', [
@@ -5458,7 +5501,7 @@ define('moxie/file/FileDrop', [
 
 /**
 @contsructor
-@class plupload/core/Optionable
+@class plupload.core.Optionable
 @private
 @since 3.0
 */
@@ -5582,7 +5625,7 @@ define('plupload/core/Optionable', [
 Every queue item must have properties, implement methods and fire events defined in this class
 
 @contsructor
-@class plupload/core/Queueable
+@class plupload.core.Queueable
 @private
 @decorator
 @extends EventTarget
@@ -5595,7 +5638,7 @@ define('plupload/core/Queueable', [
     var dispatches = [
         /**
          * Dispatched when the item is put on pending list
-         * 
+         *
          * @event queued
          * @param {Object} event
          */
@@ -5604,7 +5647,7 @@ define('plupload/core/Queueable', [
 
         /**
          * Dispatched as soon as activity starts
-         * 
+         *
          * @event started
          * @param {Object} event
          */
@@ -5619,7 +5662,7 @@ define('plupload/core/Queueable', [
 
         /**
          * Dispatched as the activity progresses
-         * 
+         *
          * @event
          * @param {Object} event
          *      @param {Number} event.percent
@@ -5718,14 +5761,13 @@ define('plupload/core/Queueable', [
 
 
             progress: function(processed, total) {
-                this.processed = processed;
-                this.loaded = this.processed; // for backward compatibility
-
                 if (total) {
                     this.total = total;
                 }
 
-                this.percent = Math.min(Math.ceil(this.processed / this.total * 100), 100);
+                this.processed = Math.min(processed, this.total);
+                this.loaded = this.processed; // for backward compatibility
+                this.percent = Math.ceil(this.processed / this.total * 100);
 
                 this.trigger({
                     type: 'progress',
@@ -5755,7 +5797,7 @@ define('plupload/core/Queueable', [
 // Included from: src/core/Stats.js
 
 /**
-@class plupload/core/Stats
+@class plupload.core.Stats
 @constructor
 @private
 */
@@ -5907,7 +5949,7 @@ define('plupload/core/Stats', [], function() {
 
 /**
 @contsructor
-@class plupload/core/Queue
+@class plupload.core.Queue
 @private
 */
 define('plupload/core/Queue', [
@@ -5921,7 +5963,7 @@ define('plupload/core/Queue', [
     var dispatches = [
         /**
          * Dispatched as soon as activity starts
-         * 
+         *
          * @event started
          * @param {Object} event
          */
@@ -5932,7 +5974,7 @@ define('plupload/core/Queue', [
 
         /**
          * Dispatched as the activity progresses
-         * 
+         *
          * @event
          * @param {Object} event
          *      @param {Number} event.percent
@@ -5943,7 +5985,7 @@ define('plupload/core/Queue', [
 
 
         /**
-         * 
+         *
          */
         'Paused',
 
@@ -5960,7 +6002,7 @@ define('plupload/core/Queue', [
      */
     return (function(Parent) {
         Basic.inherit(Queue, Parent);
-    
+
 
         function Queue(options) {
             Parent.apply(this, arguments);
@@ -6004,7 +6046,7 @@ define('plupload/core/Queue', [
         Queue.PAUSED = 3;
         Queue.DESTROYED = 8;
 
-        
+
         Basic.extend(Queue.prototype, {
 
             /**
@@ -6019,7 +6061,7 @@ define('plupload/core/Queue', [
 
             /**
              * Start the queue
-             * 
+             *
              * @method start
              */
             start: function() {
@@ -6058,7 +6100,7 @@ define('plupload/core/Queue', [
             /**
              * Stop the queue. If `finish_active=true` the queue will wait until active items are done, before
              * stopping.
-             * 
+             *
              * @method stop
              */
             stop: function() {
@@ -6090,7 +6132,7 @@ define('plupload/core/Queue', [
 
             /**
              * Add instance of Queueable to the queue. If `auto_start=true` queue will start as well.
-             * 
+             *
              * @method addItem
              * @param {Queueable} item
              */
@@ -6289,7 +6331,7 @@ define('plupload/core/Queue', [
             var self = this;
             var item;
 
-            while (self.stats.processing < self.getOption('max_slots')) {
+            if (self.stats.processing < self.getOption('max_slots')) {
                 item = getCandidate.call(self);
                 if (item) {
                     if (self.getOption('pause_before_start') && item.state === Queueable.IDLE) {
@@ -6307,6 +6349,8 @@ define('plupload/core/Queue', [
                     self.stop();
                     return self.trigger('Done');
                 }
+
+                Basic.delay.call(self, processNext);
             }
         }
 
@@ -6328,6 +6372,10 @@ define('plupload/core/Queue', [
                     case Queueable.FAILED:
                         self.stats.failed++;
                         break;
+                    
+                    case Queueable.PROCESSING:
+                        self.stats.processing++;
+                        break;
 
                     default:
                         self.stats.queued++;
@@ -6343,7 +6391,7 @@ define('plupload/core/Queue', [
                 }
             });
 
-            // for backward compatibility     
+            // for backward compatibility
             self.stats.loaded = self.stats.processed;
             self.stats.size = self.stats.total;
         }
@@ -6367,20 +6415,19 @@ define('plupload/core/Queue', [
 
 
 /**
- @contsructor
- @class plupload/QueueUpload
+ @class plupload.QueueUpload
+ @extends plupload.core.Queue
+ @constructor
  @private
+ @final
+ @since 3.0
+ @param {Object} options
  */
 define('plupload/QueueUpload', [
     'moxie/core/utils/Basic',
     'plupload/core/Queue'
 ], function(Basic, Queue) {
 
-    /**
-     * @class QueueUpload
-     * @constructor
-     * @extends Queue
-     */
     return (function(Parent) {
         Basic.inherit(QueueUpload, Parent);
 
@@ -6395,24 +6442,23 @@ define('plupload/QueueUpload', [
                 url: false,
                 chunk_size: 0,
                 multipart: true,
+                multipart_append_params: true,
                 http_method: 'POST',
                 params: {},
                 headers: false,
                 file_data_name: 'file',
                 send_file_name: true,
-                stop_on_fail: true
+                stop_on_fail: true,
+                chunk_upload_url: null
             });
 
             this.setOption = function(option, value) {
                 if (typeof(option) !== 'object') {
-                    if (option == 'max_upload_slots') {
-                        option = 'max_slots';
-                    }
                     if (!this._options.hasOwnProperty(option)) {
                         return;
                     }
                 }
-                QueueUpload.prototype.setOption.apply(this, arguments);
+                QueueUpload.prototype.setOption.call(this, option, value);
             };
 
             this.setOptions(options);
@@ -6436,20 +6482,19 @@ define('plupload/QueueUpload', [
 
 
 /**
- @contsructor
- @class plupload/QueueResize
+ @class plupload.QueueResize
+ @extends plupload.core.Queue
+ @constructor
  @private
- */
+ @final
+ @since 3.0
+ @param {Object} options
+*/
 define('plupload/QueueResize', [
     'moxie/core/utils/Basic',
     'plupload/core/Queue'
 ], function(Basic, Queue) {
 
-    /**
-     * @class QueueResize
-     * @constructor
-     * @extends Queue
-     */
     return (function(Parent) {
         Basic.inherit(QueueResize, Parent);
 
@@ -6807,7 +6852,7 @@ define("moxie/xhr/XMLHttpRequest", [
 	function XMLHttpRequestUpload() {
 		this.uid = Basic.guid('uid_');
 	}
-	
+
 	XMLHttpRequestUpload.prototype = EventTarget.instance;
 
 	/**
@@ -6834,10 +6879,10 @@ define("moxie/xhr/XMLHttpRequest", [
 		'loadend'
 
 		// readystatechange (for historical reasons)
-	]; 
-	
+	];
+
 	var NATIVE = 1, RUNTIME = 2;
-					
+
 	function XMLHttpRequest() {
 		var self = this,
 			// this (together with _p() @see below) is here to gracefully upgrade to setter/getter syntax where possible
@@ -6903,7 +6948,7 @@ define("moxie/xhr/XMLHttpRequest", [
 				/**
 				Returns the response type. Can be set to change the response type. Values are:
 				the empty string (default), "arraybuffer", "blob", "document", "json", and "text".
-				
+
 				@property responseType
 				@type String
 				*/
@@ -6911,7 +6956,7 @@ define("moxie/xhr/XMLHttpRequest", [
 
 				/**
 				Returns the document response entity body.
-				
+
 				Throws an "InvalidStateError" exception if responseType is not the empty string or "document".
 
 				@property responseXML
@@ -6921,7 +6966,7 @@ define("moxie/xhr/XMLHttpRequest", [
 
 				/**
 				Returns the text response entity body.
-				
+
 				Throws an "InvalidStateError" exception if responseType is not the empty string or "text".
 
 				@property responseText
@@ -6932,7 +6977,7 @@ define("moxie/xhr/XMLHttpRequest", [
 				/**
 				Returns the response entity body (http://www.w3.org/TR/XMLHttpRequest/#response-entity-body).
 				Can become: ArrayBuffer, Blob, Document, JSON, Text
-				
+
 				@property response
 				@type Mixed
 				*/
@@ -6969,7 +7014,7 @@ define("moxie/xhr/XMLHttpRequest", [
 			_responseHeadersBag
 			;
 
-		
+
 		Basic.extend(this, props, {
 			/**
 			Unique id of the component
@@ -6978,7 +7023,7 @@ define("moxie/xhr/XMLHttpRequest", [
 			@type String
 			*/
 			uid: Basic.guid('uid_'),
-			
+
 			/**
 			Target for Upload events
 
@@ -6986,7 +7031,7 @@ define("moxie/xhr/XMLHttpRequest", [
 			@type XMLHttpRequestUpload
 			*/
 			upload: new XMLHttpRequestUpload(),
-			
+
 
 			/**
 			Sets the request method, request URL, synchronous flag, request username, and request password.
@@ -7014,12 +7059,12 @@ define("moxie/xhr/XMLHttpRequest", [
 			*/
 			open: function(method, url, async, user, password) {
 				var urlp;
-				
+
 				// first two arguments are required
 				if (!method || !url) {
 					throw new x.DOMException(x.DOMException.SYNTAX_ERR);
 				}
-				
+
 				// 2 - check if any code point in method is higher than U+00FF or after deflating method it does not match the method
 				if (/[\u0100-\uffff]/.test(method) || Encode.utf8_encode(method) !== method) {
 					throw new x.DOMException(x.DOMException.SYNTAX_ERR);
@@ -7029,8 +7074,8 @@ define("moxie/xhr/XMLHttpRequest", [
 				if (!!~Basic.inArray(method.toUpperCase(), ['CONNECT', 'DELETE', 'GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'TRACE', 'TRACK'])) {
 					_method = method.toUpperCase();
 				}
-				
-				
+
+
 				// 4 - allowing these methods poses a security risk
 				if (!!~Basic.inArray(_method, ['CONNECT', 'TRACE', 'TRACK'])) {
 					throw new x.DOMException(x.DOMException.SECURITY_ERR);
@@ -7038,15 +7083,15 @@ define("moxie/xhr/XMLHttpRequest", [
 
 				// 5
 				url = Encode.utf8_encode(url);
-				
+
 				// 6 - Resolve url relative to the XMLHttpRequest base URL. If the algorithm returns an error, throw a "SyntaxError".
 				urlp = Url.parseUrl(url);
 
 				_same_origin_flag = Url.hasSameOrigin(urlp);
-																
+
 				// 7 - manually build up absolute url
 				_url = Url.resolveUrl(url);
-		
+
 				// 9-10, 12-13
 				if ((user || password) && !_same_origin_flag) {
 					throw new x.DOMException(x.DOMException.INVALID_ACCESS_ERR);
@@ -7054,16 +7099,16 @@ define("moxie/xhr/XMLHttpRequest", [
 
 				_user = user || urlp.user;
 				_password = password || urlp.pass;
-				
+
 				// 11
 				_async = async || true;
-				
+
 				if (_async === false && (_p('timeout') || _p('withCredentials') || _p('responseType') !== "")) {
 					throw new x.DOMException(x.DOMException.INVALID_ACCESS_ERR);
 				}
-				
+
 				// 14 - terminate abort()
-				
+
 				// 15 - terminate send()
 
 				// 18
@@ -7074,11 +7119,11 @@ define("moxie/xhr/XMLHttpRequest", [
 
 				// 19
 				_p('readyState', XMLHttpRequest.OPENED);
-				
+
 				// 20
 				this.dispatchEvent('readystatechange');
 			},
-			
+
 			/**
 			Appends an header to the list of author request headers, or if header is already
 			in the list of author request headers, combines its value with value.
@@ -7086,7 +7131,7 @@ define("moxie/xhr/XMLHttpRequest", [
 			Throws an "InvalidStateError" exception if the state is not OPENED or if the send() flag is set.
 			Throws a "SyntaxError" exception if header is not a valid HTTP header field name or if value
 			is not a valid HTTP header field value.
-			
+
 			@method setRequestHeader
 			@param {String} header
 			@param {String|Number} value
@@ -7115,7 +7160,7 @@ define("moxie/xhr/XMLHttpRequest", [
 						"user-agent",
 						"via"
 					];
-				
+
 				// 1-2
 				if (_p('readyState') !== XMLHttpRequest.OPENED || _send_flag) {
 					throw new x.DOMException(x.DOMException.INVALID_STATE_ERR);
@@ -7133,7 +7178,7 @@ define("moxie/xhr/XMLHttpRequest", [
 				}*/
 
 				header = Basic.trim(header).toLowerCase();
-				
+
 				// setting of proxy-* and sec-* headers is prohibited by spec
 				if (!!~Basic.inArray(header, uaHeaders) || /^(proxy\-|sec\-)/.test(header)) {
 					return false;
@@ -7142,7 +7187,7 @@ define("moxie/xhr/XMLHttpRequest", [
 				// camelize
 				// browsers lowercase header names (at least for custom ones)
 				// header = header.replace(/\b\w/g, function($1) { return $1.toUpperCase(); });
-				
+
 				if (!_headers[header]) {
 					_headers[header] = value;
 				} else {
@@ -7150,6 +7195,18 @@ define("moxie/xhr/XMLHttpRequest", [
 					_headers[header] += ', ' + value;
 				}
 				return true;
+			},
+
+			/**
+			 * Test if the specified header is already set on this request.
+			 * Returns a header value or boolean false if it's not yet set.
+			 *
+			 * @method hasRequestHeader
+			 * @param {String} header Name of the header to test
+			 * @return {Boolean|String}
+			 */
+			hasRequestHeader: function(header) {
+				return header && _headers[header.toLowerCase()] || false;
 			},
 
 			/**
@@ -7163,7 +7220,7 @@ define("moxie/xhr/XMLHttpRequest", [
 			},
 
 			/**
-			Returns the header field value from the response of which the field name matches header, 
+			Returns the header field value from the response of which the field name matches header,
 			unless the field name is Set-Cookie or Set-Cookie2.
 
 			@method getResponseHeader
@@ -7198,7 +7255,7 @@ define("moxie/xhr/XMLHttpRequest", [
 				}
 				return null;
 			},
-			
+
 			/**
 			Sets the Content-Type header for the response to mime.
 			Throws an "InvalidStateError" exception if the state is LOADING or DONE.
@@ -7209,7 +7266,7 @@ define("moxie/xhr/XMLHttpRequest", [
 			*/
 			overrideMimeType: function(mime) {
 				var matches, charset;
-			
+
 				// 1
 				if (!!~Basic.inArray(_p('readyState'), [XMLHttpRequest.LOADING, XMLHttpRequest.DONE])) {
 					throw new x.DOMException(x.DOMException.INVALID_STATE_ERR);
@@ -7233,7 +7290,7 @@ define("moxie/xhr/XMLHttpRequest", [
 				_finalMime = mime;
 				_finalCharset = charset;
 			},
-			
+
 			/**
 			Initiates the request. The optional argument provides the request entity body.
 			The argument is ignored if request method is GET or HEAD.
@@ -7244,7 +7301,7 @@ define("moxie/xhr/XMLHttpRequest", [
 			@param {Blob|Document|String|FormData} [data] Request entity body
 			@param {Object} [options] Set of requirements and pre-requisities for runtime initialization
 			*/
-			send: function(data, options) {					
+			send: function(data, options) {
 				if (Basic.typeOf(options) === 'string') {
 					_options = { ruid: options };
 				} else if (!options) {
@@ -7252,19 +7309,19 @@ define("moxie/xhr/XMLHttpRequest", [
 				} else {
 					_options = options;
 				}
-															
+
 				// 1-2
 				if (this.readyState !== XMLHttpRequest.OPENED || _send_flag) {
 					throw new x.DOMException(x.DOMException.INVALID_STATE_ERR);
 				}
-				
-				// 3					
+
+				// 3
 				// sending Blob
 				if (data instanceof Blob) {
 					_options.ruid = data.ruid;
 					_mimeType = data.type || 'application/octet-stream';
 				}
-				
+
 				// FormData
 				else if (data instanceof FormData) {
 					if (data.hasBlob()) {
@@ -7273,12 +7330,12 @@ define("moxie/xhr/XMLHttpRequest", [
 						_mimeType = blob.type || 'application/octet-stream';
 					}
 				}
-				
+
 				// DOMString
 				else if (typeof data === 'string') {
 					_encoding = 'UTF-8';
 					_mimeType = 'text/plain;charset=UTF-8';
-					
+
 					// data should be converted to Unicode and encoded as UTF-8
 					data = Encode.utf8_encode(data);
 				}
@@ -7309,10 +7366,10 @@ define("moxie/xhr/XMLHttpRequest", [
 				// 8.5 - Return the send() method call, but continue running the steps in this algorithm.
 				_doXHR.call(this, data);
 			},
-			
+
 			/**
 			Cancels any network activity.
-			
+
 			@method abort
 			*/
 			abort: function() {
@@ -7519,18 +7576,18 @@ define("moxie/xhr/XMLHttpRequest", [
 				}
 			}
 		}
-		
+
 		/*
 		function _toASCII(str, AllowUnassigned, UseSTD3ASCIIRules) {
 			// TODO: http://tools.ietf.org/html/rfc3490#section-4.1
 			return str.toLowerCase();
 		}
 		*/
-		
-		
+
+
 		function _doXHR(data) {
 			var self = this;
-			
+
 			_start_time = new Date().getTime();
 
 			_xhr = new RuntimeTarget();
@@ -7550,12 +7607,12 @@ define("moxie/xhr/XMLHttpRequest", [
 					self.dispatchEvent('readystatechange');
 
 					self.dispatchEvent(e);
-					
+
 					if (_upload_events_flag) {
 						self.upload.dispatchEvent(e);
 					}
 				});
-				
+
 				_xhr.bind('Progress', function(e) {
 					if (_p('readyState') !== XMLHttpRequest.LOADING) {
 						_p('readyState', XMLHttpRequest.LOADING); // LoadStart unreliable (in Flash for example)
@@ -7563,7 +7620,7 @@ define("moxie/xhr/XMLHttpRequest", [
 					}
 					self.dispatchEvent(e);
 				});
-				
+
 				_xhr.bind('UploadProgress', function(e) {
 					if (_upload_events_flag) {
 						self.upload.dispatchEvent({
@@ -7574,12 +7631,12 @@ define("moxie/xhr/XMLHttpRequest", [
 						});
 					}
 				});
-				
+
 				_xhr.bind('Load', function(e) {
 					_p('readyState', XMLHttpRequest.DONE);
 					_p('status', Number(runtime.exec.call(_xhr, 'XMLHttpRequest', 'getStatus') || 0));
 					_p('statusText', httpCode[_p('status')] || "");
-					
+
 					_p('response', runtime.exec.call(_xhr, 'XMLHttpRequest', 'getResponse', _p('responseType')));
 
 					if (!!~Basic.inArray(_p('responseType'), ['text', ''])) {
@@ -7591,7 +7648,7 @@ define("moxie/xhr/XMLHttpRequest", [
 					_responseHeaders = runtime.exec.call(_xhr, 'XMLHttpRequest', 'getAllResponseHeaders');
 
 					self.dispatchEvent('readystatechange');
-					
+
 					if (_p('status') > 0) { // status 0 usually means that server is unreachable
 						if (_upload_events_flag) {
 							self.upload.dispatchEvent(e);
@@ -7608,7 +7665,7 @@ define("moxie/xhr/XMLHttpRequest", [
 					self.dispatchEvent(e);
 					loadEnd();
 				});
-				
+
 				_xhr.bind('Error', function(e) {
 					_error_flag = true;
 					_p('readyState', XMLHttpRequest.DONE);
@@ -7653,7 +7710,7 @@ define("moxie/xhr/XMLHttpRequest", [
 			if (!_same_origin_flag) {
 				_options.required_caps.do_cors = true;
 			}
-			
+
 
 			if (_options.ruid) { // we do not need to wait if we can connect directly
 				exec(_xhr.connectRuntime(_options));
@@ -7667,8 +7724,8 @@ define("moxie/xhr/XMLHttpRequest", [
 				_xhr.connectRuntime(_options);
 			}
 		}
-	
-		
+
+
 		function _reset() {
 			_p('responseText', "");
 			_p('responseXML', null);
@@ -7684,7 +7741,7 @@ define("moxie/xhr/XMLHttpRequest", [
 	XMLHttpRequest.HEADERS_RECEIVED = 2;
 	XMLHttpRequest.LOADING = 3;
 	XMLHttpRequest.DONE = 4;
-	
+
 	XMLHttpRequest.prototype = EventTarget.instance;
 
 	return XMLHttpRequest;
@@ -7703,44 +7760,41 @@ define("moxie/xhr/XMLHttpRequest", [
  */
 
 /**
- * @class plupload/ChunkUploader
- * @constructor 
- * @private 
+ * @class plupload.ChunkUploader
+ * @extends plupload.core.Queueable
+ * @constructor
+ * @private
  * @final
  * @constructor
- * @extends plupload/core/Queueable
  */
 define('plupload/ChunkUploader', [
-    'plupload',
+    'moxie/core/utils/Basic',
     'plupload/core/Collection',
     'plupload/core/Queueable',
     'moxie/xhr/XMLHttpRequest',
     'moxie/xhr/FormData'
-], function(plupload, Collection, Queueable, XMLHttpRequest, FormData) {
+], function(Basic, Collection, Queueable, XMLHttpRequest, FormData) {
 
-
-    function ChunkUploader(blob, options) {
+    function ChunkUploader(blob, options, chunkInfo) {
         var _xhr;
+        var _options;
         var _blob = blob;
+        var _chunkInfo = chunkInfo; 
 
         Queueable.call(this);
 
         this.setOptions(options);
 
-        plupload.extend(this, {
+        Basic.extend(this, {
 
-            uid: plupload.guid(),
+            uid: Basic.guid(),
 
             start: function(options) {
                 var self = this;
-                var url;
                 var formData;
-                var _options;
 
-                if (options) {
-                    this.setOptions(options);
-                }
-                _options = this.getOptions();
+                // have the options ovverride local to start() method only
+                _options = options ? Basic.extendImmutable({}, this.getOptions(), options) : this.getOptions();
 
                 ChunkUploader.prototype.start.call(this);
 
@@ -7775,37 +7829,38 @@ define('plupload/ChunkUploader', [
                 };
 
 
-                url = _options.multipart ? _options.url : buildUrl(_options.url, _options.params);
-                _xhr.open(_options.http_method, url, true);
+                self.getChunkUploadUrl(function(url) {
+                    _xhr.open(_options.http_method, url, true);
 
 
-                // headers must be set after request is already opened, otherwise INVALID_STATE_ERR exception will raise
-                if (!plupload.isEmptyObj(_options.headers)) {
-                    plupload.each(_options.headers, function(val, key) {
-                        _xhr.setRequestHeader(key, val);
-                    });
-                }
-
-
-                if (_options.multipart) {
-                    formData = new FormData();
-
-                    if (!plupload.isEmptyObj(_options.params)) {
-                        plupload.each(_options.params, function(val, key) {
-                            formData.append(key, val);
+                    // headers must be set after request is already opened, otherwise INVALID_STATE_ERR exception will raise
+                    if (!Basic.isEmptyObj(_options.headers)) {
+                        Basic.each(_options.headers, function(val, key) {
+                            _xhr.setRequestHeader(key, val);
                         });
                     }
 
-                    formData.append(_options.file_data_name, _blob);
 
-                    _xhr.send(formData);
-                } else { // if no multipart, send as binary stream    
-                    if (plupload.isEmptyObj(_options.headers) || !_options.headers['content-type']) {
-                        _xhr.setRequestHeader('content-type', 'application/octet-stream'); // binary stream header
+                    if (_options.multipart) {
+                        formData = new FormData();
+
+                        if (_options.multipart_append_params && !Basic.isEmptyObj(_options.params)) {
+                            Basic.each(_options.params, function(val, key) {
+                                formData.append(key, val);
+                            });
+                        }
+
+                        formData.append(_options.file_data_name, _blob);
+
+                        _xhr.send(formData);
+                    } else { // if no multipart, send as binary stream
+                        if (Basic.isEmptyObj(_options.headers) || !_options.headers['content-type']) {
+                            _xhr.setRequestHeader('content-type', 'application/octet-stream'); // binary stream header
+                        }
+
+                        _xhr.send(_blob);
                     }
-
-                    _xhr.send(_blob);
-                }
+                });
             },
 
 
@@ -7815,6 +7870,14 @@ define('plupload/ChunkUploader', [
                 if (_xhr) {
                     _xhr.abort();
                     _xhr = null;
+                }
+            },
+
+            getChunkUploadUrl: function (callback) {
+                if (typeof(_options.chunk_upload_url) === 'function') {
+                    _options.chunk_upload_url(_blob, _chunkInfo, callback);
+                } else {
+                    callback(_options.multipart ? _options.url : buildUrl(_options.url, _options.params));
                 }
             }
         });
@@ -7832,7 +7895,7 @@ define('plupload/ChunkUploader', [
         function buildUrl(url, items) {
             var query = '';
 
-            plupload.each(items, function(value, name) {
+            Basic.each(items, function(value, name) {
                 query += (query ? '&' : '') + encodeURIComponent(name) + '=' + encodeURIComponent(value);
             });
 
@@ -7863,18 +7926,18 @@ define('plupload/ChunkUploader', [
  */
 
 /**
- * @class plupload/FileUploader
- * @constructor 
+ * @class plupload.FileUploader
+ * @extends plupload.core.Queueable
+ * @constructor
  * @since 3.0
  * @final
- * @extends plupload/core/Queueable
  */
 define('plupload/FileUploader', [
-	'plupload',
+	'moxie/core/utils/Basic',
 	'plupload/core/Collection',
 	'plupload/core/Queueable',
 	'plupload/ChunkUploader'
-], function(plupload, Collection, Queueable, ChunkUploader) {
+], function(Basic, Collection, Queueable, ChunkUploader) {
 
 
 	function FileUploader(fileRef, queue) {
@@ -7888,6 +7951,7 @@ define('plupload/FileUploader', [
 			url: false,
 			chunk_size: 0,
 			multipart: true,
+			multipart_append_params: true,
 			http_method: 'POST',
 			params: {},
 			headers: false,
@@ -7896,7 +7960,7 @@ define('plupload/FileUploader', [
 			stop_on_fail: true
 		};
 
-		plupload.extend(this, {
+		Basic.extend(this, {
 
 			/**
 			Unique identifier
@@ -7904,10 +7968,10 @@ define('plupload/FileUploader', [
 			@property uid
 			@type {String}
             */
-			uid: plupload.guid(),
+			uid: Basic.guid(),
 
 			/**
-			When send_file_name is set to true, will be sent with the request as `name` param. 
+			When send_file_name is set to true, will be sent with the request as `name` param.
             Can be used on server-side to override original file name.
 
             @property name
@@ -7933,7 +7997,7 @@ define('plupload/FileUploader', [
 					_totalChunks = Math.ceil(_file.size / self._options.chunk_size);
 					self.uploadChunk(false, false, true);
 				} else {
-					up = new ChunkUploader(_file, self._options);
+					up = new ChunkUploader(_file, self._options, self.chunkInfo(0));
 
 					up.bind('progress', function(e) {
 						self.progress(e.loaded, e.total);
@@ -7954,46 +8018,42 @@ define('plupload/FileUploader', [
 
 			uploadChunk: function(seq, options, dontStop) {
 				var self = this;
-				var chunkSize = this.getOption('chunk_size');
 				var up;
-				var chunk = {};
+				var chunk;
 				var _options;
 
 				if (options) {
 					// chunk_size cannot be changed on the fly
 					delete options.chunk_size;
-					plupload.extend(this._options, options);
+					Basic.extendImmutable(this._options, options);
 				}
 
-				chunk.seq = parseInt(seq, 10) || getNextChunk();
-				chunk.start = chunk.seq * chunkSize;
-				chunk.end = Math.min(chunk.start + chunkSize, _file.size);
-				chunk.total = _file.size;
+				chunk = self.chunkInfo(seq);
 
 				// do not proceed for weird chunks
 				if (chunk.start < 0 || chunk.start >= _file.size) {
 					return false;
 				}
 
-				_options = plupload.extend({}, this.getOptions(), {
+				_options = Basic.extendImmutable({}, this.getOptions(), {
 					params: {
-						chunk: seq,
+						chunk: chunk.seq,
 						chunks: _totalChunks
 					}
 				});
 
-				up = new ChunkUploader(_file.slice(chunk.start, chunk.end, _file.type), _options);
+				up = new ChunkUploader(_file.slice(chunk.start, chunk.end, _file.type), _options, chunk);
 
 				up.bind('progress', function(e) {
 					self.progress(calcProcessed() + e.loaded, _file.size);
 				});
 
 				up.bind('failed', function(e, result) {
-					_chunks.add(chunk.seq, plupload.extend({
+					_chunks.add(chunk.seq, Basic.extend({
 						state: Queueable.FAILED
 					}, chunk));
 
-					self.trigger('chunkuploadfailed', plupload.extend({}, chunk, result));
+					self.trigger('chunkuploadfailed', Basic.extendImmutable({}, chunk, result));
 
 					if (_options.stop_on_fail) {
 						self.failed(result);
@@ -8001,16 +8061,17 @@ define('plupload/FileUploader', [
 				});
 
 				up.bind('done', function(e, result) {
-					_chunks.add(chunk.seq, plupload.extend({
+					_chunks.add(chunk.seq, Basic.extend({
 						state: Queueable.DONE
 					}, chunk));
 
-					self.trigger('chunkuploaded', plupload.extend({}, chunk, result));
+					self.trigger('chunkuploaded', Basic.extendImmutable({}, chunk, result), Basic.extendImmutable({}, _file));
 
 					if (calcProcessed() >= _file.size) {
+						self.progress(_file.size, _file.size);
 						self.done(result); // obviously we are done
 					} else if (dontStop) {
-						plupload.delay(function() {
+						Basic.delay(function() {
 							self.uploadChunk(getNextChunk(), false, dontStop);
 						});
 					}
@@ -8020,8 +8081,7 @@ define('plupload/FileUploader', [
 					this.destroy();
 				});
 
-
-				_chunks.add(chunk.seq, plupload.extend({
+				_chunks.add(chunk.seq, Basic.extend({
 					state: Queueable.PROCESSING
 				}, chunk));
 				queue.addItem(up);
@@ -8042,6 +8102,25 @@ define('plupload/FileUploader', [
 				FileUploader.prototype.setOption.apply(this, arguments);
 			},
 
+			chunkInfo: function (seq) {
+				var start;
+				var end;
+				var chunkSize = this.getOption('chunk_size');
+
+				seq = parseInt(seq, 10) || getNextChunk();
+				start = seq * chunkSize;
+				end = Math.min(start + chunkSize, _file.size);
+				
+				return {
+					seq: seq,
+					start: start,
+					end: end,
+					size: end - start,
+					chunks: _totalChunks, 
+					filesize: _file.size,
+					filename: _file.name
+				};
+			},
 
 			destroy: function() {
 				FileUploader.prototype.destroy.call(this);
@@ -8433,7 +8512,7 @@ define("moxie/image/Image", [
 					height: self.height
 				};
 
-				options = Basic.extendIf({
+				var opts = Basic.extendIf({
 					width: self.width,
 					height: self.height,
 					type: self.type || 'image/jpeg',
@@ -8459,34 +8538,34 @@ define("moxie/image/Image", [
 					orientation = (self.meta && self.meta.tiff && self.meta.tiff.Orientation) || 1;
 
 					if (Basic.inArray(orientation, [5,6,7,8]) !== -1) { // values that require 90 degree rotation
-						var tmp = options.width;
-						options.width = options.height;
-						options.height = tmp;
+						var tmp = opts.width;
+						opts.width = opts.height;
+						opts.height = tmp;
 					}
 
-					if (options.crop) {
-						scale = Math.max(options.width/self.width, options.height/self.height);
+					if (opts.crop) {
+						scale = Math.max(opts.width/self.width, opts.height/self.height);
 
 						if (options.fit) {
 							// first scale it up or down to fit the original image
-							srcRect.width = Math.min(Math.ceil(options.width/scale), self.width);
-							srcRect.height = Math.min(Math.ceil(options.height/scale), self.height);
+							srcRect.width = Math.min(Math.ceil(opts.width/scale), self.width);
+							srcRect.height = Math.min(Math.ceil(opts.height/scale), self.height);
 							
 							// recalculate the scale for adapted dimensions
-							scale = options.width/srcRect.width; 
+							scale = opts.width/srcRect.width;
 						} else {
-							srcRect.width = Math.min(options.width, self.width);
-							srcRect.height = Math.min(options.height, self.height);
+							srcRect.width = Math.min(opts.width, self.width);
+							srcRect.height = Math.min(opts.height, self.height);
 
 							// now we do not need to scale it any further
 							scale = 1; 
 						}
 
-						if (typeof(options.crop) === 'boolean') {
-							options.crop = 'cc';
+						if (typeof(opts.crop) === 'boolean') {
+							opts.crop = 'cc';
 						}
 
-						switch (options.crop.toLowerCase()) {
+						switch (opts.crop.toLowerCase().replace(/_/, '-')) {
 							case 'rb':
 							case 'right-bottom':
 								srcRect.x = self.width - srcRect.width;
@@ -8544,16 +8623,16 @@ define("moxie/image/Image", [
 							default:
 								srcRect.x = Math.floor((self.width - srcRect.width) / 2);
 								srcRect.y = Math.floor((self.height - srcRect.height) / 2);
-						}						
+						}
 
 						// original image might be smaller than requested crop, so - avoid negative values
 						srcRect.x = Math.max(srcRect.x, 0);
 						srcRect.y = Math.max(srcRect.y, 0);
 					} else {
-						scale = Math.min(options.width/self.width, options.height/self.height);
+						scale = Math.min(opts.width/self.width, opts.height/self.height);
 					}
 
-					this.exec('Image', 'resize', srcRect, scale, options);
+					this.exec('Image', 'resize', srcRect, scale, opts);
 				} catch(ex) {
 					// for now simply trigger error event
 					self.trigger('error', ex.code);
@@ -8565,14 +8644,8 @@ define("moxie/image/Image", [
 
 			@method downsize
 			@deprecated use resize()
-			@param {Object} opts
-				@param {Number} opts.width Resulting width
-				@param {Number} [opts.height=width] Resulting height (optional, if not supplied will default to width)
-				@param {Boolean} [opts.crop=false] Whether to crop the image to exact dimensions
-				@param {Boolean} [opts.preserveHeaders=true] Whether to preserve meta headers (on JPEGs after resize)
-				@param {String} [opts.resample=false] Resampling algorithm to use for resizing
 			*/
-			downsize: function(opts) {
+			downsize: function(options) {
 				var defaults = {
 					width: this.width,
 					height: this.height,
@@ -8581,10 +8654,10 @@ define("moxie/image/Image", [
 					crop: false,
 					preserveHeaders: true,
 					resample: 'default'
-				};
+				}, opts;
 
-				if (typeof(opts) === 'object') {
-					opts = Basic.extend(defaults, opts);
+				if (typeof(options) === 'object') {
+					opts = Basic.extend(defaults, options);
 				} else {
 					// for backward compatibility
 					opts = Basic.extend(defaults, {
@@ -8672,24 +8745,24 @@ define("moxie/image/Image", [
 
 			@method embed
 			@param {DOMElement} el DOM element to insert the image object into
-			@param {Object} [opts]
-				@param {Number} [opts.width] The width of an embed (defaults to the image width)
-				@param {Number} [opts.height] The height of an embed (defaults to the image height)
-				@param {String} [type="image/jpeg"] Mime type
-				@param {Number} [quality=90] Quality of an embed, if mime type is image/jpeg
-				@param {Boolean} [crop=false] Whether to crop an embed to the specified dimensions
+			@param {Object} [options]
+				@param {Number} [options.width] The width of an embed (defaults to the image width)
+				@param {Number} [options.height] The height of an embed (defaults to the image height)
+				@param {String} [options.type="image/jpeg"] Mime type
+				@param {Number} [options.quality=90] Quality of an embed, if mime type is image/jpeg
+				@param {Boolean} [options.crop=false] Whether to crop an embed to the specified dimensions
 			*/
-			embed: function(el, opts) {
+			embed: function(el, options) {
 				var self = this
 				, runtime // this has to be outside of all the closures to contain proper runtime
 				;
 
-				opts = Basic.extend({
+				var opts = Basic.extend({
 					width: this.width,
 					height: this.height,
 					type: this.type || 'image/jpeg',
 					quality: 90
-				}, opts || {});
+				}, options);
 				
 
 				function render(type, quality) {
@@ -8977,8 +9050,13 @@ define("moxie/image/Image", [
  */
 
 /**
-@class plupload/ImageResizer
-@constructor 
+ @class plupload.ImageResizer
+ @extends plupload.core.Queueable
+ @constructor
+ @private
+ @final
+ @since 3.0
+ @param {plupload.File} fileRef
 */
 define("plupload/ImageResizer", [
 	'plupload',
@@ -8986,12 +9064,7 @@ define("plupload/ImageResizer", [
 	'moxie/image/Image'
 ], function(plupload, Queueable, mxiImage) {
 
-	/**
-	Image preloading and manipulation utility. Additionally it provides access to image meta info (Exif, GPS) and raw binary data.
 
-	@class plupload/Image
-	@constructor
-	*/
 	function ImageResizer(fileRef) {
 
 		Queueable.call(this);
@@ -9046,6 +9119,9 @@ define("plupload/ImageResizer", [
 
 	ImageResizer.prototype = new Queueable();
 
+	// ImageResizer is only included for builds with Image manipulation support, so we add plupload.Image here manually
+	plupload.Image = mxiImage;
+
 	return ImageResizer;
 });
 
@@ -9062,11 +9138,11 @@ define("plupload/ImageResizer", [
  */
 
 /**
- * @class plupload/File
+ * @class plupload.File
+ * @extends plupload.core.Queueable
  * @constructor
  * @since 3.0
  * @final
- * @extends plupload/core/Queueable
  */
 define('plupload/File', [
     'plupload',
@@ -9210,6 +9286,10 @@ define('plupload/File', [
                     self.progress(e.loaded, e.total);
                 });
 
+                up.bind('chunkuploaded', function(e, info, file) {
+                    self.chunkuploaded(info, file);
+                });
+
                 up.bind('done', function(e, result) {
                     self.done(result);
                 });
@@ -9226,6 +9306,13 @@ define('plupload/File', [
             destroy: function() {
                 File.prototype.destroy.call(this);
                 _file = null;
+            },
+
+            chunkuploaded: function (info, file) {
+                queueUpload.trigger('chunkuploaded', {
+                    file: file,
+                    info: info
+                });
             }
         });
     }
@@ -9266,11 +9353,12 @@ define('plupload/File', [
 
 
 /**
-@class plupload/Uploader
+@class plupload.Uploader
+@extends plupload.core.Queue
+@constructor
 @public
 @final
-@constructor
-@extends plupload/core/Queue
+
 
 @param {Object} settings For detailed information about each option check documentation.
 	@param {String|DOMElement} settings.browse_button id of the DOM element or DOM element itself to use as file dialog trigger.
@@ -9292,12 +9380,17 @@ define('plupload/File', [
 	@param {String} [settings.http_method="POST"] HTTP method to use during upload (only PUT or POST allowed).
 	@param {Boolean} [settings.multi_selection=true] Enable ability to select multiple files at once in file dialog.
 	@param {String|Object} [settings.required_features] Either comma-separated list or hash of required features that chosen runtime should absolutely possess.
-	@param {Object} [settings.resize] Enable resizng of images on client-side. Applies to `image/jpeg` and `image/png` only. `e.g. {width : 200, height : 200, quality : 90, crop: true}`
-		@param {Number} [settings.resize.width] If image is bigger, it will be resized.
-		@param {Number} [settings.resize.height] If image is bigger, it will be resized.
-		@param {Number} [settings.resize.quality=90] Compression quality for jpegs (1-100).
-		@param {Boolean} [settings.resize.crop=false] Whether to crop images to exact dimensions. By default they will be resized proportionally.
-	@param {String} [settings.runtimes="html5,flash,silverlight,html4"] Comma separated list of runtimes, that Plupload will try in turn, moving to the next if previous fails.
+	@param {Object} [settings.resize] Enable resizing of images on client-side. Applies to `image/jpeg` and `image/png` only. `e.g. {width : 200, height : 200, quality : 90, crop: true}`
+		 @param {Number} settings.resize.width Resulting width
+		 @param {Number} [settings.resize.height=width] Resulting height (optional, if not supplied will default to width)
+		 @param {String} [settings.resize.type='image/jpeg'] MIME type of the resulting image
+		 @param {Number} [settings.resize.quality=90] In the case of JPEG, controls the quality of resulting image
+		 @param {Boolean} [settings.resize.crop='cc'] If not falsy, image will be cropped, by default from center
+		 @param {Boolean} [settings.resize.fit=true] In case of crop whether to upscale the image to fit the exact dimensions
+		 @param {Boolean} [settings.resize.preserveHeaders=true] Whether to preserve meta headers (on JPEGs after resize)
+		 @param {String} [settings.resize.resample='default'] Resampling algorithm to use during resize
+		 @param {Boolean} [settings.resize.multipass=true] Whether to scale the image in steps (results in better quality)
+ 	@param {String} [settings.runtimes="html5,flash,silverlight,html4"] Comma separated list of runtimes, that Plupload will try in turn, moving to the next if previous fails.
 	@param {String} [settings.silverlight_xap_url] URL of the Silverlight xap.
 	@param {Boolean} [settings.unique_names=false] If true will generate unique filenames for uploaded files.
 	@param {Boolean} [settings.send_file_name=true] Whether to send file name as additional argument - 'name' (required for chunked uploads and some other cases where file name cannot be sent via normal ways).
@@ -9502,10 +9595,11 @@ define('plupload/Uploader', [
 					max_file_size: 0
 				},
 				// headers: false, // Plupload had a required feature with the same name, comment it to avoid confusion
-				max_upload_slots: 1,
+				max_slots: 1,
 				max_resize_slots: 1,
 				multipart: true,
 				multipart_params: {}, // deprecated, use - params,
+				multipart_append_params: true,
 				// @since 3
 				params: {},
 				// @since 2.3
@@ -9516,7 +9610,8 @@ define('plupload/Uploader', [
 				send_chunk_number: true, // whether to send chunks and chunk numbers, instead of total and offset bytes
 				max_retries: 0,
 				resize: false,
-				backward_compatibility: true
+				backward_compatibility: true,
+				chunk_upload_url: null
 			},
 			options
 		);
@@ -9595,7 +9690,6 @@ define('plupload/Uploader', [
 			 *
 			 * @property total
 			 * @deprecated use stats
-			 * @type plupload.QueueProgress
 			 */
 			total: this.stats,
 
@@ -9661,6 +9755,10 @@ define('plupload/Uploader', [
 
 						_queueUpload = new QueueUpload(queueOpts);
 						_queueResize = new QueueResize(queueOpts);
+
+						_queueUpload.bind('chunkuploaded', function (sender, data) {
+							self.trigger('chunkuploaded', data);
+						});
 
 						self.trigger('Init', {
 							ruid: runtime.uid,
@@ -12941,219 +13039,6 @@ define("moxie/runtime/html5/image/ResizerCanvas", [], function() {
 
 });
 
-// Included from: src/moxie/src/javascript/runtime/html5/image/ResizerWebGL.js
-
-/**
- * ResizerWebGL.js
- *
- * Released under LGPL License.
- * Copyright (c) 1999-2015 Ephox Corp. All rights reserved
- *
- * License: http://www.tinymce.com/license
- * Contributing: http://www.tinymce.com/contributing
- */
-
-/**
- * Resizes image/canvas using Webgl
- */
-define("moxie/runtime/html5/image/ResizerWebGL", [], function() {
-
-    function scale(image, ratio) {
-        var dW = Math.floor(image.width * ratio);
-        var dH = Math.floor(image.height * ratio);
-        var canvas = document.createElement('canvas');
-        canvas.width = dW;
-        canvas.height = dH;
-
-        _drawImage(canvas, image, ratio, ratio);
-        image = null; // just in case
-
-        return canvas;
-    }
-
-    var shaders = {
-        bilinear: {
-            VERTEX_SHADER: '\
-                attribute vec2 a_dest_xy;\
-                \
-                uniform vec2 u_wh;\
-                uniform vec2 u_ratio;\
-                \
-                varying vec2 a_xy;\
-                varying vec2 b_xy;\
-                varying vec2 c_xy;\
-                varying vec2 d_xy;\
-                \
-                varying float xx0;\
-                varying float x1x;\
-                varying float yy0;\
-                varying float y1y;\
-                \
-                void main() {\
-                    vec2 xy = a_dest_xy / u_ratio - 1.0;\
-                    float x = xy.x;\
-                    float y = xy.y;\
-                    float offset = 0.5;\
-                    \
-                    float x0 = x - offset;\
-                    float x1 = x + offset;\
-                    float y0 = y - offset;\
-                    float y1 = y + offset;\
-                    \
-                    a_xy = vec2(x0, y0) / u_wh;\
-                    b_xy = vec2(x1, y0) / u_wh;\
-                    c_xy = vec2(x1, y1) / u_wh;\
-                    d_xy = vec2(x0, y1) / u_wh;\
-                    \
-                    xx0 = (x - x0) / (x1 - x0);\
-                    x1x = (x1 - x) / (x1 - x0);\
-                    yy0 = (y - y0) / (y1 - y0);\
-                    y1y = (y1 - y) / (y1 - y0);\
-                    \
-                    gl_Position = vec4(((xy / u_wh) * 2.0 - 1.0) * vec2(1, -1), 0, 1);\
-                }\
-            ',
-
-            FRAGMENT_SHADER: '\
-                precision mediump float;\
-                \
-                uniform sampler2D u_image;\
-                \
-                varying vec2 a_xy;\
-                varying vec2 b_xy;\
-                varying vec2 c_xy;\
-                varying vec2 d_xy;\
-                \
-                varying float xx0;\
-                varying float x1x;\
-                varying float yy0;\
-                varying float y1y;\
-                \
-                void main() {\
-                    vec4 a = texture2D(u_image, a_xy);\
-                    vec4 b = texture2D(u_image, b_xy);\
-                    vec4 c = texture2D(u_image, c_xy);\
-                    vec4 d = texture2D(u_image, d_xy);\
-                    \
-                    vec4 ab = b * xx0 + a * x1x;\
-                    vec4 dc = c * xx0 + d * x1x;\
-                    vec4 abdc = dc * yy0 + ab * y1y;\
-                    \
-                    gl_FragColor = abdc;\
-                }\
-            '
-        }
-    };
-
-
-    function _drawImage(canvas, image, wRatio, hRatio) {
-        var gl = _get3dContext(canvas);
-        if (!gl) {
-            throw "Your environment doesn't support WebGL.";
-        }
-
-        // we need a gap around the edges to avoid a black frame
-        wRatio = canvas.width / (image.width + 2);
-        hRatio = canvas.height / (image.height + 2);
-
-        var program = _createProgram(gl);
-        gl.useProgram(program);
-
-        _loadFloatBuffer(gl, program, "a_dest_xy", [
-            0, 0,
-            canvas.width, 0,
-            0, canvas.height,
-            0, canvas.height,
-            canvas.width, 0,
-            canvas.width, canvas.height
-        ]);
-
-        // load the texture
-        var texture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-
-        // without this we won't be able to process images of arbitrary dimensions
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-
-
-        var uResolution = gl.getUniformLocation(program, "u_wh");
-        gl.uniform2f(uResolution, image.width, image.height);
-
-        var uRatio = gl.getUniformLocation(program, "u_ratio");
-        gl.uniform2f(uRatio, wRatio, hRatio);
-
-
-        // lets draw...
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
-    }
-
-
-    function _get3dContext(canvas) {
-        var gl = null;
-        try {
-            gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
-        }
-        catch(e) {}
-
-        if (!gl) { // it seems that sometimes it doesn't throw exception, but still fails to get context
-            gl = null;
-        }
-        return gl;
-    }
-
-
-    function _loadFloatBuffer(gl, program, attrName, bufferData) {
-        var attr = gl.getAttribLocation(program, attrName);
-        var buffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bufferData), gl.STATIC_DRAW);
-        gl.enableVertexAttribArray(attr);
-        gl.vertexAttribPointer(attr, 2, gl.FLOAT, false, 0, 0);
-    }
-
-
-    function _createProgram(gl) {
-        var program = gl.createProgram();
-
-        for (var type in shaders.bilinear) {
-            gl.attachShader(program, _loadShader(gl, shaders.bilinear[type], type));
-        }
-
-        gl.linkProgram(program);
-        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-            var err = gl.getProgramInfoLog(program);
-            gl.deleteProgram(program);
-            throw "Cannot create a program: " + err;
-        }
-        return program;
-    }
-
-
-    function _loadShader(gl, source, type) {
-        var shader = gl.createShader(gl[type]);
-        gl.shaderSource(shader, source);
-        gl.compileShader(shader);
-
-        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-            var err = gl.getShaderInfoLog(shader);
-            gl.deleteShader(shader);
-            throw "Cannot compile a " + type + " shader: " + err;
-        }
-        return shader;
-    }
-
-
-    return {
-        scale: scale
-    };
-
-});
-
 // Included from: src/moxie/src/javascript/runtime/html5/image/Image.js
 
 /**
@@ -13179,10 +13064,9 @@ define("moxie/runtime/html5/image/Image", [
 	"moxie/file/File",
 	"moxie/runtime/html5/image/ImageInfo",
 	"moxie/runtime/html5/image/ResizerCanvas",
-	"moxie/runtime/html5/image/ResizerWebGL",
 	"moxie/core/utils/Mime",
 	"moxie/core/utils/Env"
-], function(extensions, Basic, x, Encode, Blob, File, ImageInfo, ResizerCanvas, ResizerWebGL, Mime, Env) {
+], function(extensions, Basic, x, Encode, Blob, File, ImageInfo, ResizerCanvas, Mime, Env) {
 	
 	function HTML5Image() {
 		var me = this
@@ -15515,5 +15399,6 @@ define("moxie/runtime/html4/image/Image", [
 	return (extensions.Image = Image);
 });
 
-expose(["moxie/core/utils/Basic","moxie/core/I18n","moxie/core/utils/Env","moxie/core/utils/Dom","moxie/core/utils/Events","moxie/core/utils/Url","moxie/core/Exceptions","moxie/core/EventTarget","moxie/runtime/Runtime","moxie/core/utils/Mime","moxie/runtime/RuntimeClient","moxie/file/FileInput","moxie/core/utils/Encode","moxie/file/Blob","moxie/file/FileReader","plupload","moxie/file/File","moxie/file/FileDrop","moxie/runtime/RuntimeTarget","moxie/xhr/FormData","moxie/xhr/XMLHttpRequest","plupload/FileUploader","moxie/runtime/Transporter","moxie/image/Image","plupload/ImageResizer","plupload/File","plupload/Uploader","moxie/runtime/html5/image/ResizerCanvas","moxie/runtime/html5/image/ResizerWebGL"]);
+expose(["moxie/core/utils/Basic","moxie/core/I18n","moxie/core/utils/Env","moxie/core/utils/Dom","moxie/core/utils/Events","moxie/core/utils/Url","moxie/core/Exceptions","moxie/core/EventTarget","moxie/runtime/Runtime","moxie/core/utils/Mime","moxie/runtime/RuntimeClient","moxie/file/FileInput","moxie/core/utils/Encode","moxie/file/Blob","moxie/file/FileReader","plupload","moxie/file/File","moxie/file/FileDrop","moxie/runtime/RuntimeTarget","moxie/xhr/FormData","moxie/xhr/XMLHttpRequest","plupload/FileUploader","moxie/runtime/Transporter","moxie/image/Image","plupload/File","plupload/Uploader","moxie/runtime/html5/image/ResizerCanvas"]);
 })(this);
+}));

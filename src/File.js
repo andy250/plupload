@@ -79,6 +79,8 @@ define('plupload/File', [
              */
             size: _file.size,
 
+            total: _file.size,
+
             /**
              * Original file size in bytes.
              *

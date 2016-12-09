@@ -40,7 +40,6 @@ define('plupload/ChunkUploader', [
 
             start: function(options) {
                 var self = this;
-                var url;
                 var formData;
 
                 // have the options ovverride local to start() method only
@@ -79,37 +78,38 @@ define('plupload/ChunkUploader', [
                 };
 
 
-                url = self.getChunkUploadUrl();
-                _xhr.open(_options.http_method, url, true);
+                self.getChunkUploadUrl(function(url) {
+                    _xhr.open(_options.http_method, url, true);
 
 
-                // headers must be set after request is already opened, otherwise INVALID_STATE_ERR exception will raise
-                if (!Basic.isEmptyObj(_options.headers)) {
-                    Basic.each(_options.headers, function(val, key) {
-                        _xhr.setRequestHeader(key, val);
-                    });
-                }
-
-
-                if (_options.multipart) {
-                    formData = new FormData();
-
-                    if (_options.multipart_append_params && !Basic.isEmptyObj(_options.params)) {
-                        Basic.each(_options.params, function(val, key) {
-                            formData.append(key, val);
+                    // headers must be set after request is already opened, otherwise INVALID_STATE_ERR exception will raise
+                    if (!Basic.isEmptyObj(_options.headers)) {
+                        Basic.each(_options.headers, function(val, key) {
+                            _xhr.setRequestHeader(key, val);
                         });
                     }
 
-                    formData.append(_options.file_data_name, _blob);
 
-                    _xhr.send(formData);
-                } else { // if no multipart, send as binary stream
-                    if (Basic.isEmptyObj(_options.headers) || !_options.headers['content-type']) {
-                        _xhr.setRequestHeader('content-type', 'application/octet-stream'); // binary stream header
+                    if (_options.multipart) {
+                        formData = new FormData();
+
+                        if (_options.multipart_append_params && !Basic.isEmptyObj(_options.params)) {
+                            Basic.each(_options.params, function(val, key) {
+                                formData.append(key, val);
+                            });
+                        }
+
+                        formData.append(_options.file_data_name, _blob);
+
+                        _xhr.send(formData);
+                    } else { // if no multipart, send as binary stream
+                        if (Basic.isEmptyObj(_options.headers) || !_options.headers['content-type']) {
+                            _xhr.setRequestHeader('content-type', 'application/octet-stream'); // binary stream header
+                        }
+
+                        _xhr.send(_blob);
                     }
-
-                    _xhr.send(_blob);
-                }
+                });
             },
 
 
@@ -122,11 +122,11 @@ define('plupload/ChunkUploader', [
                 }
             },
 
-            getChunkUploadUrl: function () {
+            getChunkUploadUrl: function (callback) {
                 if (typeof(_options.chunk_upload_url) === 'function') {
-                    return _options.chunk_upload_url(_chunkInfo)
+                    _options.chunk_upload_url(_blob, _chunkInfo, callback);
                 } else {
-                    return _options.multipart ? _options.url : buildUrl(_options.url, _options.params);
+                    callback(_options.multipart ? _options.url : buildUrl(_options.url, _options.params));
                 }
             }
         });
