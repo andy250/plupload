@@ -70,7 +70,9 @@ define('plupload/ChunkUploader', [
                 };
 
                 _xhr.onerror = function() {
-                    self.failed(); // TODO: reason here
+                    self.failed({
+                        status: 503     // for now just say service unavailable
+                    });                 // TODO: is it possible to get real reason from the underlying XHR?
                 };
 
                 _xhr.onloadend = function() {

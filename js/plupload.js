@@ -6363,7 +6363,7 @@ define('plupload/core/Queue', [
                 self.stats.processed += item.processed;
                 self.stats.total += item.total;
 
-                switch (item.status) {
+                switch (item.state) {
                     case Queueable.DONE:
                         self.stats.done++;
                         self.stats.uploaded = self.stats.done; // for backward compatibility
@@ -7821,7 +7821,9 @@ define('plupload/ChunkUploader', [
                 };
 
                 _xhr.onerror = function() {
-                    self.failed(); // TODO: reason here
+                    self.failed({
+                        status: 503     // for now just say service unavailable
+                    });                 // TODO: is it possible to get real reason from the underlying XHR?
                 };
 
                 _xhr.onloadend = function() {
@@ -9208,6 +9210,8 @@ define('plupload/File', [
              */
             size: _file.size,
 
+            total: _file.size,
+
             /**
              * Original file size in bytes.
              *
@@ -10188,7 +10192,16 @@ define('plupload/Uploader', [
 			this.bind('BeforeUpload', onBeforeUpload);
 
 			this.bind('Done', function(up) {
-				up.trigger('UploadComplete');
+				var trigger = false;
+				plupload.each(up.files, function (f) {
+					if (!f.completeTriggered) {
+						f.completeTriggered = true;
+						trigger = true;
+					}
+				});
+				if (trigger) {
+					up.trigger('UploadComplete');
+				}
 			});
 
 			this.bind('Error', onError);
