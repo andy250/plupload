@@ -31,7 +31,8 @@
 		@param {Boolean} [settings.filters.prevent_duplicates=false] Do not let duplicates into the queue. Dispatches `plupload.FILE_DUPLICATE_ERROR`.
 	@param {String} [settings.flash_swf_url] URL of the Flash swf.
 	@param {Object} [settings.headers] Custom headers to send with the upload. Hash of name/value pairs.
-	@param {Number} [settings.max_retries=0] How many times to retry the chunk or file, before triggering Error event.
+	@param {Number} [settings.max_retries=0] How many times to retry a file, before triggering file Error event.
+	@param {Number} [settings.max_chunk_retries=0] How many times to retry a chunk, before triggering chunk Error event.
 	@param {Boolean} [settings.multipart=true] Whether to send file and additional parameters as Multipart formated message.
 	@param {Object} [settings.params] Hash of key/value pairs to send with every file upload.
 	@param {String} [settings.http_method="POST"] HTTP method to use during upload (only PUT or POST allowed).
@@ -253,6 +254,7 @@ define('plupload/Uploader', [
 				},
 				// headers: false, // Plupload had a required feature with the same name, comment it to avoid confusion
 				max_slots: 1,
+				max_upload_slots: 1,
 				max_resize_slots: 1,
 				multipart: true,
 				multipart_params: {}, // deprecated, use - params,
@@ -266,8 +268,10 @@ define('plupload/Uploader', [
 				send_file_name: true,
 				send_chunk_number: true, // whether to send chunks and chunk numbers, instead of total and offset bytes
 				max_retries: 0,
+				max_chunk_retries: 0,
 				resize: false,
 				backward_compatibility: true,
+				stop_file_on_chunk_fail: true,
 				chunk_upload_url: null
 			},
 			options

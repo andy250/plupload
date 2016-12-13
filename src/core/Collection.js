@@ -41,6 +41,15 @@ define('plupload/core/Collection', [
                 return _registry[key];
             },
 
+            getAll: function () {
+                var res = [];
+                for (var k in _registry) {
+                    if (_registry.hasOwnProperty(k)) {
+                        res.push(_registry[k]);
+                    }
+                }
+                return res;
+            },
 
             first: function() {
                 for (var key in _registry) {

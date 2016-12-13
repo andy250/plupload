@@ -43,12 +43,17 @@ define('plupload/QueueUpload', [
                 headers: false,
                 file_data_name: 'file',
                 send_file_name: true,
-                stop_on_fail: true,
+                stop_file_on_chunk_fail: true,
                 chunk_upload_url: null
             });
 
             this.setOption = function(option, value) {
                 if (typeof(option) !== 'object') {
+                    if (option == 'max_upload_slots') {
+                        option = 'max_slots';
+                    } else if (option == 'max_chunk_retries') {
+                        option = 'max_retries';
+                    }
                     if (!this._options.hasOwnProperty(option)) {
                         return;
                     }

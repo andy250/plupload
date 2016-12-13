@@ -26,7 +26,9 @@ define('plupload/FileUploader', [
 	function FileUploader(fileRef, queue) {
 		var _file = fileRef;
 		var _chunks = new Collection();
+		var _chunkSize = 0;
 		var _totalChunks = 1;
+		var _waitHandle = null;
 
 		Queueable.call(this);
 
@@ -40,7 +42,7 @@ define('plupload/FileUploader', [
 			headers: false,
 			file_data_name: 'file',
 			send_file_name: true,
-			stop_on_fail: true
+			stop_file_on_chunk_fail: true
 		};
 
 		Basic.extend(this, {
@@ -67,49 +69,27 @@ define('plupload/FileUploader', [
 				var self = this;
 				var up;
 
-				this.setOptions(options);
+				self.setOptions(options);
+
+				// chunk size cannot be modified for a file once set
+				_chunkSize = self.getOption('chunk_size');
 
 				FileUploader.prototype.start.call(self);
 
 				// send additional 'name' parameter only if required or explicitly requested
-				if (self._options.send_file_name) {
+				if (self.getOption('send_file_name')) {
 					self._options.params.name = self.target_name || self.name;
 				}
 
-				if (self._options.chunk_size) {
-					_totalChunks = Math.ceil(_file.size / self._options.chunk_size);
-					self.uploadChunk(false, false, true);
-				} else {
-					up = new ChunkUploader(_file, self._options, self.chunkInfo(0));
-
-					up.bind('progress', function(e) {
-						self.progress(e.loaded, e.total);
-					});
-
-					up.bind('done', function(e, result) {
-						self.done(result);
-					});
-
-					up.bind('failed', function(e, result) {
-						self.failed(result);
-					});
-
-					queue.addItem(up);
-				}
+				_totalChunks = _chunkSize ? Math.ceil(_file.size / _chunkSize) : 1;
+				self.uploadChunk(0);
 			},
 
 
-			uploadChunk: function(seq, options, dontStop) {
+			uploadChunk: function(seq) {
 				var self = this;
 				var up;
 				var chunk;
-				var _options;
-
-				if (options) {
-					// chunk_size cannot be changed on the fly
-					delete options.chunk_size;
-					Basic.extendImmutable(this._options, options);
-				}
 
 				chunk = self.chunkInfo(seq);
 
@@ -118,14 +98,14 @@ define('plupload/FileUploader', [
 					return false;
 				}
 
-				_options = Basic.extendImmutable({}, this.getOptions(), {
+				var chunkUploaderOptions = Basic.extendImmutable({}, this.getOptions(), {
 					params: {
 						chunk: chunk.seq,
 						chunks: _totalChunks
 					}
 				});
 
-				up = new ChunkUploader(_file.slice(chunk.start, chunk.end, _file.type), _options, chunk);
+				up = new ChunkUploader(_file.slice(chunk.start, chunk.end, _file.type), chunkUploaderOptions, chunk);
 
 				up.bind('progress', function(e) {
 					self.progress(calcProcessed() + e.loaded, _file.size);
@@ -136,10 +116,13 @@ define('plupload/FileUploader', [
 						state: Queueable.FAILED
 					}, chunk));
 
-					self.trigger('chunkuploadfailed', Basic.extendImmutable({}, chunk, result));
+					if (_chunkSize) {
+						self.trigger('chunkuploadfailed', Basic.extendImmutable({}, chunk, result), Basic.extendImmutable({}, _file));
+					}
 
-					if (_options.stop_on_fail) {
+					if (this.getOption('stop_file_on_chunk_fail')) {
 						self.failed(result);
+						this.destroy();
 					}
 				});
 
@@ -148,35 +131,47 @@ define('plupload/FileUploader', [
 						state: Queueable.DONE
 					}, chunk));
 
-					self.trigger('chunkuploaded', Basic.extendImmutable({}, chunk, result), Basic.extendImmutable({}, _file));
+					if (_chunkSize) {
+						self.trigger('chunkuploaded', Basic.extendImmutable({}, chunk, result), Basic.extendImmutable({}, _file));
+					}
 
 					if (calcProcessed() >= _file.size) {
 						self.progress(_file.size, _file.size);
-						self.done(result); // obviously we are done
-					} else if (dontStop) {
+						self.done(result);
+					} else if (_chunkSize) {
 						Basic.delay(function() {
-							self.uploadChunk(getNextChunk(), false, dontStop);
+							self.uploadChunk(getNextChunk());
 						});
 					}
+
+					this.destroy();
 				});
 
-				up.bind('processed', function() {
-					this.destroy();
+				up.bind('aborted', function(e, result) {
+					if (result.status === 503) {
+						// server unavialable
+						self.trigger('serverdisconnected');
+					} else {
+						// chunk uploader reported error after all retries failed - fail the whole file
+						self.failed(result);
+						// and destroy the chunk uploader 
+						this.destroy();
+					}
 				});
 
 				_chunks.add(chunk.seq, Basic.extend({
 					state: Queueable.PROCESSING
 				}, chunk));
+
 				queue.addItem(up);
 
 				// enqueue even more chunks if slots available
-				if (dontStop && queue.countSpareSlots()) {
-					self.uploadChunk(getNextChunk(), false, dontStop);
+				if (queue.countSpareSlots()) {
+					self.uploadChunk(getNextChunk());
 				}
 
 				return true;
 			},
-
 
 			setOption: function(option, value) {
 				if (typeof(option) !== 'object' && !this._options.hasOwnProperty(option)) {
@@ -188,11 +183,10 @@ define('plupload/FileUploader', [
 			chunkInfo: function (seq) {
 				var start;
 				var end;
-				var chunkSize = this.getOption('chunk_size');
 
 				seq = parseInt(seq, 10) || getNextChunk();
-				start = seq * chunkSize;
-				end = Math.min(start + chunkSize, _file.size);
+				start = seq * _chunkSize;
+				end = Math.min(start + _chunkSize, _file.size);
 				
 				return {
 					seq: seq,

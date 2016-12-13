@@ -127,6 +127,16 @@ define('plupload/core/Queueable', [
             },
 
 
+            abort: function (result) {
+                this.processed = this.percent = 0;
+                this.loaded = this.processed; // for backward compatibility
+
+                this.state = Queueable.FAILED;
+                this.trigger('aborted', result);
+                this.trigger('processed');
+            },
+
+
             done: function(result) {
                 this.processed = this.total;
                 this.loaded = this.processed; // for backward compatibility
@@ -166,13 +176,17 @@ define('plupload/core/Queueable', [
 
 
             destroy: function() {
-                if (self.state === Queueable.DESTROYED) {
+                if (this.state === Queueable.DESTROYED) {
                     return; // already destroyed
                 }
 
                 this.state = Queueable.DESTROYED;
                 this.trigger('destroy');
                 this.unbindAll();
+            },
+
+            retry: function () {
+                this.retries++;
             }
 
         });

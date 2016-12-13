@@ -93,6 +93,15 @@ define('plupload/core/Queue', [
             this.stats = new Stats();
 
 
+            this._connected = true;
+
+
+            this._wait = 1000,
+
+
+            this._waitHandle = null,
+
+
             this._options = Basic.extend({
                 max_slots: 1,
                 max_retries: 0,
@@ -203,13 +212,24 @@ define('plupload/core/Queue', [
 
                 item.bind('Progress', function() {
                     calcStats.call(self);
+                    self.reconnect();
                 });
 
-                item.bind('Failed', function() {
-                    if (self.getOption('max_retries') && this.retries < self.getOption('max_retries')) {
-                        this.stop();
-                        this.retries++;
+                item.bind('Failed', function(e, result) {
+                    var max_retries = self.getOption('max_retries'); 
+                    if (max_retries) {
+                         if (this.retries < max_retries) {
+                            // stop resets state of this instance to IDLE so it can be picked up from the queue again
+                            this.stop();
+                            this.retry();
+                         } else {
+                            this.abort(result);
+                         }
                     }
+                });
+
+                item.bind('serverdisconnected', function () {
+                    self.disconnect();
                 });
 
                 item.bind('Processed', function() {
@@ -371,6 +391,40 @@ define('plupload/core/Queue', [
 
                     self.unbindAll();
                     self._queue = self.stats = self._startTime = null;
+                }
+            },
+
+            scheduleResume: function () {
+				var self = this;
+
+                if (self._waitHandle) {
+					window.clearTimeout(self._waitHandle);
+				}
+				
+                self._waitHandle = setTimeout(function () {
+                    self.start();
+                }, self._wait);
+
+                self._wait = Math.min(self._wait * 2, 5 * 60 * 1000); // no longer than 5 minutes
+			},
+
+            disconnect: function () {
+                if (this._connected) {
+                    this._connected = false;
+                    this.pause();
+                    this.scheduleResume();
+                    this.trigger('ServerDisconnected');
+                }
+            },
+
+            reconnect: function () {
+                if (!this._connected) {
+                    this._connected = true;
+                    this._wait = 1000;
+                    if (this._waitHandle) {
+                        window.clearTimeout(this._waitHandle);
+                    }
+                    this.trigger('ServerReconnected');
                 }
             }
         });

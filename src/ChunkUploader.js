@@ -32,6 +32,7 @@ define('plupload/ChunkUploader', [
 
         Queueable.call(this);
 
+        _chunkInfo.retries = this.retries = 0;
         this.setOptions(options);
 
         Basic.extend(this, {
@@ -42,7 +43,7 @@ define('plupload/ChunkUploader', [
                 var self = this;
                 var formData;
 
-                // have the options ovverride local to start() method only
+                // have the options override local to start() method only
                 _options = options ? Basic.extendImmutable({}, this.getOptions(), options) : this.getOptions();
 
                 ChunkUploader.prototype.start.call(this);
@@ -122,6 +123,11 @@ define('plupload/ChunkUploader', [
                     _xhr.abort();
                     _xhr = null;
                 }
+            },
+
+            retry: function () {
+                ChunkUploader.prototype.retry.call(this);
+                _chunkInfo.retries = this.retries;
             },
 
             getChunkUploadUrl: function (callback) {
