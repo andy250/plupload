@@ -157,6 +157,10 @@ define('plupload/core/Queue', [
                 var self = this;
                 var prevState = self.state;
 
+                if (self.state === Queue.PAUSED) {
+                    return false;
+                }
+
                 this._queue.each(function(item) {
                     if (Basic.inArray(item.state, [Queueable.PROCESSING, Queueable.RESUMED]) !== -1) {
                         self.pauseItem(item);
@@ -166,6 +170,27 @@ define('plupload/core/Queue', [
                 self.state = Queue.PAUSED;
                 this.trigger('StateChanged', self.state, prevState);
                 self.trigger('Paused');
+            },
+
+            resume: function () {
+                var self = this;
+                var prevState = self.state;
+
+                if (self.state === Queue.STARTED) {
+                    return false;
+                }
+
+                this._queue.each(function(item) {
+                    if (Basic.inArray(item.state, [Queueable.PAUSED, Queueable.IDLE]) !== -1) {
+                        self.resumeItem(item);
+                    }
+                });
+
+                self.state = Queue.STARTED;
+                self.trigger('StateChanged', self.state, prevState);
+                
+                processNext.call(self);
+                return true;
             },
 
             /**
@@ -209,22 +234,25 @@ define('plupload/core/Queue', [
              */
             addItem: function(item) {
                 var self = this;
+                
+                var max_retries = self.getOption('max_retries');
+                if (max_retries) {
+                    item.retryReset();
+                }
 
-                item.bind('Progress', function() {
+                item.bind('Progress', function(e) {
                     calcStats.call(self);
-                    self.reconnect();
+                    self.reconnect(e);
                 });
 
                 item.bind('Failed', function(e, result) {
-                    var max_retries = self.getOption('max_retries'); 
-                    if (max_retries) {
-                         if (this.retries < max_retries) {
-                            // stop resets state of this instance to IDLE so it can be picked up from the queue again
-                            this.stop();
-                            this.retry();
-                         } else {
-                            this.abort(result);
-                         }
+                    if (max_retries && this.retries < max_retries) {
+                        // stop resets state of this instance to IDLE so it can be picked up from the queue again
+                        this.stop();
+                        this.retry();
+                    } else {
+                        // all retries failed or max_retries not set
+                        this.abort(result);
                     }
                 });
 
@@ -233,7 +261,6 @@ define('plupload/core/Queue', [
                 });
 
                 item.bind('Processed', function() {
-                    self.stats.processing--;
                     calcStats.call(self);
                     processNext.call(self);
                 }, 0, this);
@@ -287,7 +314,7 @@ define('plupload/core/Queue', [
 
             stopItem: function(uid) {
                 var item = this._queue.get(uid);
-                if (item) {
+                if (item && item.state !== Queueable.IDLE) {
                     if (item.state === Queueable.PROCESSING) {
                         this.stats.processing--;
                     }
@@ -296,16 +323,13 @@ define('plupload/core/Queue', [
                     return false;
                 }
 
-                if (!this.stats.processing && !this.stats.paused) {
-                    this.stop();
-                }
                 return true;
             },
 
 
             pauseItem: function(uid) {
                 var item = this._queue.get(uid);
-                if (item) {
+                if (item && item.state !== Queueable.PAUSED) {
                     if (item.state === Queueable.PROCESSING) {
                         this.stats.processing--;
                     }
@@ -315,10 +339,6 @@ define('plupload/core/Queue', [
                     return false;
                 }
 
-                if (!this.stats.processing) {
-                    this.pause();
-                }
-
                 return true;
             },
 
@@ -326,13 +346,12 @@ define('plupload/core/Queue', [
             resumeItem: function(uid) {
                 var item = this._queue.get(uid);
                 if (item && item.state === Queueable.PAUSED) {
-                    item.state = Queueable.RESUMED; // mark the item to be picked up on next iteration
+                    item.state = Queueable.RESUMED;
                     this.stats.paused--;
                 } else {
                     return false;
                 }
 
-                this.start();
                 return true;
             },
 
@@ -402,23 +421,21 @@ define('plupload/core/Queue', [
 				}
 				
                 self._waitHandle = setTimeout(function () {
-                    self.start();
+                    self.resume();
                 }, self._wait);
 
                 self._wait = Math.min(self._wait * 2, 5 * 60 * 1000); // no longer than 5 minutes
 			},
 
             disconnect: function () {
-                if (this._connected) {
-                    this._connected = false;
-                    this.pause();
-                    this.scheduleResume();
-                    this.trigger('ServerDisconnected');
-                }
+                this.pause();
+                this._connected = false;
+                this.scheduleResume();
+                this.trigger('ServerDisconnected');
             },
 
-            reconnect: function () {
-                if (!this._connected) {
+            reconnect: function (data) {
+                if (!this._connected && data.delta > 0) {
                     this._connected = true;
                     this._wait = 1000;
                     if (this._waitHandle) {

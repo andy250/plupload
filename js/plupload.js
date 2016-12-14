@@ -2206,6 +2206,7 @@ define('moxie/core/EventTarget', [
 					if (tmpEvt.total !== undef && tmpEvt.loaded !== undef) { // progress event
 						evt.total = tmpEvt.total;
 						evt.loaded = tmpEvt.loaded;
+						evt.delta = tmpEvt.delta || 0;
 					}
 					evt.async = tmpEvt.async || false;
 				} else {
@@ -5680,14 +5681,30 @@ define('plupload/core/Queueable', [
          */
         'progress',
 
-
+        /**
+         * Dispatched each time the queueable fails upon a single retry.
+         */
         'failed',
 
+        /**
+         * Dispatched when the queueable fails despite all retries.
+         */
+        'aborted',
 
+        /**
+         * Dispatched when the queueable is processed with a success.
+         */
         'done',
 
+        /**
+         * Dispatched after a single retry (after done, failed and aborted) so it can be retried or other items can be processed.
+         */
+        'processed',
 
-        'processed'
+        /**
+         * Dispatched when the queueable is ultimately processed and can be cleaned up.
+         */
+        'completed'
     ];
 
 
@@ -5723,6 +5740,8 @@ define('plupload/core/Queueable', [
 
             retries: 0,
 
+            canRetry: false,
+
 
             start: function() {
                 this.state = Queueable.PROCESSING;
@@ -5748,16 +5767,6 @@ define('plupload/core/Queueable', [
             },
 
 
-            abort: function (result) {
-                this.processed = this.percent = 0;
-                this.loaded = this.processed; // for backward compatibility
-
-                this.state = Queueable.FAILED;
-                this.trigger('aborted', result);
-                this.trigger('processed');
-            },
-
-
             done: function(result) {
                 this.processed = this.total;
                 this.loaded = this.processed; // for backward compatibility
@@ -5766,6 +5775,7 @@ define('plupload/core/Queueable', [
                 this.state = Queueable.DONE;
                 this.trigger('done', result);
                 this.trigger('processed');
+                this.trigger('completed');
             },
 
 
@@ -5775,7 +5785,26 @@ define('plupload/core/Queueable', [
 
                 this.state = Queueable.FAILED;
                 this.trigger('failed', result);
-                this.trigger('processed');
+                this.trigger('processed', result);
+
+                if (!this.canRetry) {
+                    this.trigger('completed');
+                }
+            },
+
+
+            abort: function (result) {
+                this.processed = this.percent = 0;
+                this.loaded = this.processed; // for backward compatibility
+
+                this.canRetry = false;
+                this.state = Queueable.FAILED;
+                this.trigger('aborted', result);
+            },
+
+
+            completed: function () {
+                this.trigger('completed');
             },
 
 
@@ -5784,12 +5813,14 @@ define('plupload/core/Queueable', [
                     this.total = total;
                 }
 
+                var previouslyProcessed = this.processed; 
                 this.processed = Math.min(processed, this.total);
                 this.loaded = this.processed; // for backward compatibility
                 this.percent = Math.ceil(this.processed / this.total * 100);
 
                 this.trigger({
                     type: 'progress',
+                    delta: this.processed - previouslyProcessed,
                     loaded: this.processed,
                     total: this.total
                 });
@@ -5808,6 +5839,11 @@ define('plupload/core/Queueable', [
 
             retry: function () {
                 this.retries++;
+            },
+
+            retryReset: function () {
+                this.retries = 0;
+                this.canRetry = true;
             }
 
         });
@@ -6118,6 +6154,10 @@ define('plupload/core/Queue', [
                 var self = this;
                 var prevState = self.state;
 
+                if (self.state === Queue.PAUSED) {
+                    return false;
+                }
+
                 this._queue.each(function(item) {
                     if (Basic.inArray(item.state, [Queueable.PROCESSING, Queueable.RESUMED]) !== -1) {
                         self.pauseItem(item);
@@ -6127,6 +6167,27 @@ define('plupload/core/Queue', [
                 self.state = Queue.PAUSED;
                 this.trigger('StateChanged', self.state, prevState);
                 self.trigger('Paused');
+            },
+
+            resume: function () {
+                var self = this;
+                var prevState = self.state;
+
+                if (self.state === Queue.STARTED) {
+                    return false;
+                }
+
+                this._queue.each(function(item) {
+                    if (Basic.inArray(item.state, [Queueable.PAUSED, Queueable.IDLE]) !== -1) {
+                        self.resumeItem(item);
+                    }
+                });
+
+                self.state = Queue.STARTED;
+                self.trigger('StateChanged', self.state, prevState);
+                
+                processNext.call(self);
+                return true;
             },
 
             /**
@@ -6170,22 +6231,25 @@ define('plupload/core/Queue', [
              */
             addItem: function(item) {
                 var self = this;
+                
+                var max_retries = self.getOption('max_retries');
+                if (max_retries) {
+                    item.retryReset();
+                }
 
-                item.bind('Progress', function() {
+                item.bind('Progress', function(e) {
                     calcStats.call(self);
-                    self.reconnect();
+                    self.reconnect(e);
                 });
 
                 item.bind('Failed', function(e, result) {
-                    var max_retries = self.getOption('max_retries'); 
-                    if (max_retries) {
-                         if (this.retries < max_retries) {
-                            // stop resets state of this instance to IDLE so it can be picked up from the queue again
-                            this.stop();
-                            this.retry();
-                         } else {
-                             this.abort(result);
-                         }
+                    if (max_retries && this.retries < max_retries) {
+                        // stop resets state of this instance to IDLE so it can be picked up from the queue again
+                        this.stop();
+                        this.retry();
+                    } else {
+                        // all retries failed or max_retries not set
+                        this.abort(result);
                     }
                 });
 
@@ -6194,7 +6258,6 @@ define('plupload/core/Queue', [
                 });
 
                 item.bind('Processed', function() {
-                    self.stats.processing--;
                     calcStats.call(self);
                     processNext.call(self);
                 }, 0, this);
@@ -6248,7 +6311,7 @@ define('plupload/core/Queue', [
 
             stopItem: function(uid) {
                 var item = this._queue.get(uid);
-                if (item) {
+                if (item && item.state !== Queueable.IDLE) {
                     if (item.state === Queueable.PROCESSING) {
                         this.stats.processing--;
                     }
@@ -6257,16 +6320,13 @@ define('plupload/core/Queue', [
                     return false;
                 }
 
-                if (!this.stats.processing && !this.stats.paused) {
-                    this.stop();
-                }
                 return true;
             },
 
 
             pauseItem: function(uid) {
                 var item = this._queue.get(uid);
-                if (item) {
+                if (item && item.state !== Queueable.PAUSED) {
                     if (item.state === Queueable.PROCESSING) {
                         this.stats.processing--;
                     }
@@ -6276,10 +6336,6 @@ define('plupload/core/Queue', [
                     return false;
                 }
 
-                if (!this.stats.processing) {
-                    this.pause();
-                }
-
                 return true;
             },
 
@@ -6287,13 +6343,12 @@ define('plupload/core/Queue', [
             resumeItem: function(uid) {
                 var item = this._queue.get(uid);
                 if (item && item.state === Queueable.PAUSED) {
-                    item.state = Queueable.RESUMED; // mark the item to be picked up on next iteration
+                    item.state = Queueable.RESUMED;
                     this.stats.paused--;
                 } else {
                     return false;
                 }
 
-                this.start();
                 return true;
             },
 
@@ -6363,23 +6418,21 @@ define('plupload/core/Queue', [
 				}
 				
                 self._waitHandle = setTimeout(function () {
-                    self.start();
+                    self.resume();
                 }, self._wait);
 
                 self._wait = Math.min(self._wait * 2, 5 * 60 * 1000); // no longer than 5 minutes
 			},
 
             disconnect: function () {
-                if (this._connected) {
-                    this._connected = false;
-                    this.pause();
-                    this.scheduleResume();
-                    this.trigger('ServerDisconnected');
-                }
+                this.pause();
+                this._connected = false;
+                this.scheduleResume();
+                this.trigger('ServerDisconnected');
             },
 
-            reconnect: function () {
-                if (!this._connected) {
+            reconnect: function (data) {
+                if (!this._connected && data.delta > 0) {
                     this._connected = true;
                     this._wait = 1000;
                     if (this._waitHandle) {
@@ -7855,13 +7908,13 @@ define('plupload/ChunkUploader', [
     'plupload/core/Queueable',
     'moxie/xhr/XMLHttpRequest',
     'moxie/xhr/FormData'
-], function(Basic, Collection, Queueable, XMLHttpRequest, FormData) {
+], function (Basic, Collection, Queueable, XMLHttpRequest, FormData) {
 
     function ChunkUploader(blob, options, chunkInfo) {
         var _xhr;
         var _options;
         var _blob = blob;
-        var _chunkInfo = chunkInfo; 
+        var _chunkInfo = chunkInfo;
 
         Queueable.call(this);
 
@@ -7872,7 +7925,7 @@ define('plupload/ChunkUploader', [
 
             uid: Basic.guid(),
 
-            start: function(options) {
+            start: function (options) {
                 var self = this;
                 var formData;
 
@@ -7881,46 +7934,45 @@ define('plupload/ChunkUploader', [
 
                 ChunkUploader.prototype.start.call(this);
 
-                _xhr = new XMLHttpRequest();
+                self.getChunkUploadUrl(function (url) {
+                    _xhr = new XMLHttpRequest();
 
-                if (_xhr.upload) {
-                    _xhr.upload.onprogress = function(e) {
-                        self.progress(e.loaded, e.total);
-                    };
-                }
-
-                _xhr.onload = function() {
-                    var result = {
-                        response: _xhr.responseText,
-                        status: _xhr.status,
-                        responseHeaders: _xhr.getAllResponseHeaders()
-                    };
-
-                    if (_xhr.status >= 400) { // assume error
-                        return self.failed(result);
+                    if (_xhr.upload) {
+                        _xhr.upload.onprogress = function (e) {
+                            self.progress(e.loaded, e.total);
+                        };
                     }
 
-                    self.done(result);
-                };
+                    _xhr.onload = function () {
+                        var result = {
+                            response: _xhr.responseText,
+                            status: _xhr.status,
+                            responseHeaders: _xhr.getAllResponseHeaders()
+                        };
 
-                _xhr.onerror = function() {
-                    self.failed({
-                        status: 503     // for now just say service unavailable
-                    });                 // TODO: is it possible to get real reason from the underlying XHR?
-                };
+                        if (_xhr.status >= 400) { // assume error
+                            return self.failed(result);
+                        }
 
-                _xhr.onloadend = function() {
-                    _xhr = null;
-                };
+                        self.done(result);
+                    };
 
+                    _xhr.onerror = function () {
+                        self.failed({
+                            status: 503     // service unavailable
+                        });
+                    };
 
-                self.getChunkUploadUrl(function(url) {
+                    _xhr.onloadend = function () {
+                        _xhr = null;
+                    };
+
                     _xhr.open(_options.http_method, url, true);
 
 
                     // headers must be set after request is already opened, otherwise INVALID_STATE_ERR exception will raise
                     if (!Basic.isEmptyObj(_options.headers)) {
-                        Basic.each(_options.headers, function(val, key) {
+                        Basic.each(_options.headers, function (val, key) {
                             _xhr.setRequestHeader(key, val);
                         });
                     }
@@ -7930,7 +7982,7 @@ define('plupload/ChunkUploader', [
                         formData = new FormData();
 
                         if (_options.multipart_append_params && !Basic.isEmptyObj(_options.params)) {
-                            Basic.each(_options.params, function(val, key) {
+                            Basic.each(_options.params, function (val, key) {
                                 formData.append(key, val);
                             });
                         }
@@ -7949,7 +8001,7 @@ define('plupload/ChunkUploader', [
             },
 
 
-            stop: function() {
+            stop: function () {
                 ChunkUploader.prototype.stop.call(this);
 
                 if (_xhr) {
@@ -7963,8 +8015,18 @@ define('plupload/ChunkUploader', [
                 _chunkInfo.retries = this.retries;
             },
 
+            retryReset: function () {
+                ChunkUploader.prototype.retryReset.call(this);
+            },
+
+            serverDisconnected: function () {
+                this.trigger('serverdisconnected');
+                this.retryReset();
+                this.stop();
+            },
+
             getChunkUploadUrl: function (callback) {
-                if (typeof(_options.chunk_upload_url) === 'function') {
+                if (typeof (_options.chunk_upload_url) === 'function') {
                     _options.chunk_upload_url(_blob, _chunkInfo, callback);
                 } else {
                     callback(_options.multipart ? _options.url : buildUrl(_options.url, _options.params));
@@ -7985,7 +8047,7 @@ define('plupload/ChunkUploader', [
         function buildUrl(url, items) {
             var query = '';
 
-            Basic.each(items, function(value, name) {
+            Basic.each(items, function (value, name) {
                 query += (query ? '&' : '') + encodeURIComponent(name) + '=' + encodeURIComponent(value);
             });
 
@@ -8090,23 +8152,6 @@ define('plupload/FileUploader', [
 
 				_totalChunks = _chunkSize ? Math.ceil(_file.size / _chunkSize) : 1;
 				self.uploadChunk(0);
-				// } else {
-				// 	up = new ChunkUploader(_file, self._options, self.chunkInfo(0));
-
-				// 	up.bind('progress', function(e) {
-				// 		self.progress(e.loaded, e.total);
-				// 	});
-
-				// 	up.bind('done', function(e, result) {
-				// 		self.done(result);
-				// 	});
-
-				// 	up.bind('failed', function(e, result) {
-				// 		self.failed(result);
-				// 	});
-
-				// 	queue.addItem(up);
-				// }
 			},
 
 
@@ -8140,13 +8185,18 @@ define('plupload/FileUploader', [
 						state: Queueable.FAILED
 					}, chunk));
 
-					if (_chunkSize) {
-						self.trigger('chunkuploadfailed', Basic.extendImmutable({}, chunk, result), Basic.extendImmutable({}, _file));
-					}
-
 					if (this.getOption('stop_file_on_chunk_fail')) {
 						self.failed(result);
-						this.destroy();
+					}
+				});
+
+				up.bind('aborted', function(e, result) {
+					if (result.status === 503) {
+						// server unavialable
+						this.serverDisconnected();
+					} else {
+						// chunk uploader reported error after all retries failed - fail the whole file
+						self.failed(result);
 					}
 				});
 
@@ -8154,10 +8204,6 @@ define('plupload/FileUploader', [
 					_chunks.add(chunk.seq, Basic.extend({
 						state: Queueable.DONE
 					}, chunk));
-
-					if (_chunkSize) {
-						self.trigger('chunkuploaded', Basic.extendImmutable({}, chunk, result), Basic.extendImmutable({}, _file));
-					}
 
 					if (calcProcessed() >= _file.size) {
 						self.progress(_file.size, _file.size);
@@ -8167,24 +8213,15 @@ define('plupload/FileUploader', [
 							self.uploadChunk(getNextChunk());
 						});
 					}
+				});
 
+				up.bind('completed', function() {
 					this.destroy();
 				});
 
-				up.bind('aborted', function(e, result) {
-					if (result.status === 503) {
-						// server unavialable
-						self.trigger('serverdisconnected');
-					} else {
-						// chunk uploader reported error after all retries failed - faile the whole file
-						self.failed(result);
-						// and destroy the chunk uploader 
-						this.destroy();
-					}
-				});
-
 				_chunks.add(chunk.seq, Basic.extend({
-					state: Queueable.PROCESSING
+					state: Queueable.PROCESSING,
+					uid: up.uid
 				}, chunk));
 
 				queue.addItem(up);
@@ -8224,6 +8261,9 @@ define('plupload/FileUploader', [
 			},
 
 			destroy: function() {
+				plupload.each(_chunks, function (item) {
+					queue.removeItem(item.uid);
+				});
 				FileUploader.prototype.destroy.call(this);
 				queue = _file = null;
 			}
@@ -9389,16 +9429,17 @@ define('plupload/File', [
                     self.progress(e.loaded, e.total);
                 });
 
-                up.bind('chunkuploaded', function(e, info, file) {
-                    self.chunkuploaded(info, file);
-                });
-
                 up.bind('done', function(e, result) {
                     self.done(result);
                 });
 
                 up.bind('failed', function(e, result) {
+                    this.destroy();
                     self.failed(result);
+                });
+
+                up.bind('completed', function(e, result) {
+                    self.completed(result);
                 });
 
                up.start(self.getOptions());
@@ -9409,13 +9450,6 @@ define('plupload/File', [
             destroy: function() {
                 File.prototype.destroy.call(this);
                 _file = null;
-            },
-
-            chunkuploaded: function (info, file) {
-                queueUpload.trigger('chunkuploaded', {
-                    file: file,
-                    info: info
-                });
             }
         });
     }
@@ -9863,8 +9897,12 @@ define('plupload/Uploader', [
 						_queueUpload = new QueueUpload(queueOpts);
 						_queueResize = new QueueResize(queueOpts);
 
-						_queueUpload.bind('chunkuploaded', function (sender, data) {
-							self.trigger('chunkuploaded', data);
+						_queueUpload.bind('ServerDisconnected', function (sender, data) {
+							self.trigger('ServerDisconnected', data);
+						});
+
+						_queueUpload.bind('ServerReconnected', function (sender, data) {
+							self.trigger('ServerReconnected', data);
 						});
 
 						self.trigger('Init', {

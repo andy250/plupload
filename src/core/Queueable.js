@@ -59,14 +59,30 @@ define('plupload/core/Queueable', [
          */
         'progress',
 
-
+        /**
+         * Dispatched each time the queueable fails upon a single retry.
+         */
         'failed',
 
+        /**
+         * Dispatched when the queueable fails despite all retries.
+         */
+        'aborted',
 
+        /**
+         * Dispatched when the queueable is processed with a success.
+         */
         'done',
 
+        /**
+         * Dispatched after a single retry (after done, failed and aborted) so it can be retried or other items can be processed.
+         */
+        'processed',
 
-        'processed'
+        /**
+         * Dispatched when the queueable is ultimately processed and can be cleaned up.
+         */
+        'completed'
     ];
 
 
@@ -102,6 +118,8 @@ define('plupload/core/Queueable', [
 
             retries: 0,
 
+            canRetry: false,
+
 
             start: function() {
                 this.state = Queueable.PROCESSING;
@@ -127,16 +145,6 @@ define('plupload/core/Queueable', [
             },
 
 
-            abort: function (result) {
-                this.processed = this.percent = 0;
-                this.loaded = this.processed; // for backward compatibility
-
-                this.state = Queueable.FAILED;
-                this.trigger('aborted', result);
-                this.trigger('processed');
-            },
-
-
             done: function(result) {
                 this.processed = this.total;
                 this.loaded = this.processed; // for backward compatibility
@@ -145,6 +153,7 @@ define('plupload/core/Queueable', [
                 this.state = Queueable.DONE;
                 this.trigger('done', result);
                 this.trigger('processed');
+                this.trigger('completed');
             },
 
 
@@ -154,7 +163,26 @@ define('plupload/core/Queueable', [
 
                 this.state = Queueable.FAILED;
                 this.trigger('failed', result);
-                this.trigger('processed');
+                this.trigger('processed', result);
+
+                if (!this.canRetry) {
+                    this.trigger('completed');
+                }
+            },
+
+
+            abort: function (result) {
+                this.processed = this.percent = 0;
+                this.loaded = this.processed; // for backward compatibility
+
+                this.canRetry = false;
+                this.state = Queueable.FAILED;
+                this.trigger('aborted', result);
+            },
+
+
+            completed: function () {
+                this.trigger('completed');
             },
 
 
@@ -163,12 +191,14 @@ define('plupload/core/Queueable', [
                     this.total = total;
                 }
 
+                var previouslyProcessed = this.processed; 
                 this.processed = Math.min(processed, this.total);
                 this.loaded = this.processed; // for backward compatibility
                 this.percent = Math.ceil(this.processed / this.total * 100);
 
                 this.trigger({
                     type: 'progress',
+                    delta: this.processed - previouslyProcessed,
                     loaded: this.processed,
                     total: this.total
                 });
@@ -187,6 +217,11 @@ define('plupload/core/Queueable', [
 
             retry: function () {
                 this.retries++;
+            },
+
+            retryReset: function () {
+                this.retries = 0;
+                this.canRetry = true;
             }
 
         });

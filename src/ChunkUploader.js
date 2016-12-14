@@ -22,13 +22,13 @@ define('plupload/ChunkUploader', [
     'plupload/core/Queueable',
     'moxie/xhr/XMLHttpRequest',
     'moxie/xhr/FormData'
-], function(Basic, Collection, Queueable, XMLHttpRequest, FormData) {
+], function (Basic, Collection, Queueable, XMLHttpRequest, FormData) {
 
     function ChunkUploader(blob, options, chunkInfo) {
         var _xhr;
         var _options;
         var _blob = blob;
-        var _chunkInfo = chunkInfo; 
+        var _chunkInfo = chunkInfo;
 
         Queueable.call(this);
 
@@ -39,7 +39,7 @@ define('plupload/ChunkUploader', [
 
             uid: Basic.guid(),
 
-            start: function(options) {
+            start: function (options) {
                 var self = this;
                 var formData;
 
@@ -48,46 +48,45 @@ define('plupload/ChunkUploader', [
 
                 ChunkUploader.prototype.start.call(this);
 
-                _xhr = new XMLHttpRequest();
+                self.getChunkUploadUrl(function (url) {
+                    _xhr = new XMLHttpRequest();
 
-                if (_xhr.upload) {
-                    _xhr.upload.onprogress = function(e) {
-                        self.progress(e.loaded, e.total);
-                    };
-                }
-
-                _xhr.onload = function() {
-                    var result = {
-                        response: _xhr.responseText,
-                        status: _xhr.status,
-                        responseHeaders: _xhr.getAllResponseHeaders()
-                    };
-
-                    if (_xhr.status >= 400) { // assume error
-                        return self.failed(result);
+                    if (_xhr.upload) {
+                        _xhr.upload.onprogress = function (e) {
+                            self.progress(e.loaded, e.total);
+                        };
                     }
 
-                    self.done(result);
-                };
+                    _xhr.onload = function () {
+                        var result = {
+                            response: _xhr.responseText,
+                            status: _xhr.status,
+                            responseHeaders: _xhr.getAllResponseHeaders()
+                        };
 
-                _xhr.onerror = function() {
-                    self.failed({
-                        status: 503     // for now just say service unavailable
-                    });                 // TODO: is it possible to get real reason from the underlying XHR?
-                };
+                        if (_xhr.status >= 400) { // assume error
+                            return self.failed(result);
+                        }
 
-                _xhr.onloadend = function() {
-                    _xhr = null;
-                };
+                        self.done(result);
+                    };
 
+                    _xhr.onerror = function () {
+                        self.failed({
+                            status: 503     // service unavailable
+                        });
+                    };
 
-                self.getChunkUploadUrl(function(url) {
+                    _xhr.onloadend = function () {
+                        _xhr = null;
+                    };
+
                     _xhr.open(_options.http_method, url, true);
 
 
                     // headers must be set after request is already opened, otherwise INVALID_STATE_ERR exception will raise
                     if (!Basic.isEmptyObj(_options.headers)) {
-                        Basic.each(_options.headers, function(val, key) {
+                        Basic.each(_options.headers, function (val, key) {
                             _xhr.setRequestHeader(key, val);
                         });
                     }
@@ -97,7 +96,7 @@ define('plupload/ChunkUploader', [
                         formData = new FormData();
 
                         if (_options.multipart_append_params && !Basic.isEmptyObj(_options.params)) {
-                            Basic.each(_options.params, function(val, key) {
+                            Basic.each(_options.params, function (val, key) {
                                 formData.append(key, val);
                             });
                         }
@@ -116,7 +115,7 @@ define('plupload/ChunkUploader', [
             },
 
 
-            stop: function() {
+            stop: function () {
                 ChunkUploader.prototype.stop.call(this);
 
                 if (_xhr) {
@@ -130,8 +129,18 @@ define('plupload/ChunkUploader', [
                 _chunkInfo.retries = this.retries;
             },
 
+            retryReset: function () {
+                ChunkUploader.prototype.retryReset.call(this);
+            },
+
+            serverDisconnected: function () {
+                this.trigger('serverdisconnected');
+                this.retryReset();
+                this.stop();
+            },
+
             getChunkUploadUrl: function (callback) {
-                if (typeof(_options.chunk_upload_url) === 'function') {
+                if (typeof (_options.chunk_upload_url) === 'function') {
                     _options.chunk_upload_url(_blob, _chunkInfo, callback);
                 } else {
                     callback(_options.multipart ? _options.url : buildUrl(_options.url, _options.params));
@@ -152,7 +161,7 @@ define('plupload/ChunkUploader', [
         function buildUrl(url, items) {
             var query = '';
 
-            Basic.each(items, function(value, name) {
+            Basic.each(items, function (value, name) {
                 query += (query ? '&' : '') + encodeURIComponent(name) + '=' + encodeURIComponent(value);
             });
 

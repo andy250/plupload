@@ -106,6 +106,7 @@ define('plupload/FileUploader', [
 				});
 
 				up = new ChunkUploader(_file.slice(chunk.start, chunk.end, _file.type), chunkUploaderOptions, chunk);
+				chunk.uid = up.uid;
 
 				up.bind('progress', function(e) {
 					self.progress(calcProcessed() + e.loaded, _file.size);
@@ -116,13 +117,18 @@ define('plupload/FileUploader', [
 						state: Queueable.FAILED
 					}, chunk));
 
-					if (_chunkSize) {
-						self.trigger('chunkuploadfailed', Basic.extendImmutable({}, chunk, result), Basic.extendImmutable({}, _file));
-					}
-
 					if (this.getOption('stop_file_on_chunk_fail')) {
 						self.failed(result);
-						this.destroy();
+					}
+				});
+
+				up.bind('aborted', function(e, result) {
+					if (result.status === 503) {
+						// server unavialable
+						this.serverDisconnected();
+					} else {
+						// chunk uploader reported error after all retries failed - fail the whole file
+						self.failed(result);
 					}
 				});
 
@@ -130,10 +136,6 @@ define('plupload/FileUploader', [
 					_chunks.add(chunk.seq, Basic.extend({
 						state: Queueable.DONE
 					}, chunk));
-
-					if (_chunkSize) {
-						self.trigger('chunkuploaded', Basic.extendImmutable({}, chunk, result), Basic.extendImmutable({}, _file));
-					}
 
 					if (calcProcessed() >= _file.size) {
 						self.progress(_file.size, _file.size);
@@ -143,20 +145,10 @@ define('plupload/FileUploader', [
 							self.uploadChunk(getNextChunk());
 						});
 					}
-
-					this.destroy();
 				});
 
-				up.bind('aborted', function(e, result) {
-					if (result.status === 503) {
-						// server unavialable
-						self.trigger('serverdisconnected');
-					} else {
-						// chunk uploader reported error after all retries failed - fail the whole file
-						self.failed(result);
-						// and destroy the chunk uploader 
-						this.destroy();
-					}
+				up.bind('completed', function() {
+					this.destroy();
 				});
 
 				_chunks.add(chunk.seq, Basic.extend({
@@ -200,6 +192,9 @@ define('plupload/FileUploader', [
 			},
 
 			destroy: function() {
+				_chunks.each(function (item) {
+					queue.removeItem(item.uid);
+				});
 				FileUploader.prototype.destroy.call(this);
 				queue = _file = null;
 			}

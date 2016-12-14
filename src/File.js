@@ -159,16 +159,17 @@ define('plupload/File', [
                     self.progress(e.loaded, e.total);
                 });
 
-                up.bind('chunkuploaded', function(e, info, file) {
-                    self.chunkuploaded(info, file);
-                });
-
                 up.bind('done', function(e, result) {
                     self.done(result);
                 });
 
                 up.bind('failed', function(e, result) {
+                    this.destroy();
                     self.failed(result);
+                });
+
+                up.bind('completed', function(e, result) {
+                    self.completed(result);
                 });
 
                up.start(self.getOptions());
@@ -179,13 +180,6 @@ define('plupload/File', [
             destroy: function() {
                 File.prototype.destroy.call(this);
                 _file = null;
-            },
-
-            chunkuploaded: function (info, file) {
-                queueUpload.trigger('chunkuploaded', {
-                    file: file,
-                    info: info
-                });
             }
         });
     }

@@ -417,8 +417,12 @@ define('plupload/Uploader', [
 						_queueUpload = new QueueUpload(queueOpts);
 						_queueResize = new QueueResize(queueOpts);
 
-						_queueUpload.bind('chunkuploaded', function (sender, data) {
-							self.trigger('chunkuploaded', data);
+						_queueUpload.bind('ServerDisconnected', function (sender, data) {
+							self.trigger('ServerDisconnected', data);
+						});
+
+						_queueUpload.bind('ServerReconnected', function (sender, data) {
+							self.trigger('ServerReconnected', data);
 						});
 
 						self.trigger('Init', {
