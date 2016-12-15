@@ -114,6 +114,15 @@ define('plupload/core/Stats', [], function() {
 		self.processedPerSec = 0;
 
 		/**
+		 * Bytes failed.
+		 *
+		 * @property failedBytes
+		 * @since 3.0
+		 * @type Number
+		 */
+		self.failedBytes = 0;
+
+		/**
 		 * Resets the progress to its initial values.
 		 *
 		 * @method reset
@@ -130,6 +139,7 @@ define('plupload/core/Stats', [], function() {
 			self.processing =
 			self.paused = 
 			self.percent =
+			self.failedBytes =
 			self.bytesPerSec = // deprecated
 			self.processedPerSec = 0;
 		};

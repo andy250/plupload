@@ -116,6 +116,8 @@ define('plupload/core/Queueable', [
 
             percent: 0,
 
+            failedBytes: 0,
+
             retries: 0,
 
             canRetry: false,
@@ -149,6 +151,7 @@ define('plupload/core/Queueable', [
                 this.processed = this.total;
                 this.loaded = this.processed; // for backward compatibility
                 this.percent = 100;
+                this.failedBytes = 0;
 
                 this.state = Queueable.DONE;
                 this.trigger('done', result);
@@ -160,6 +163,7 @@ define('plupload/core/Queueable', [
             failed: function(result) {
                 this.processed = this.percent = 0; // reset the progress
                 this.loaded = this.processed; // for backward compatibility
+                this.failedBytes = this.total;
 
                 this.state = Queueable.FAILED;
                 this.trigger('failed', result);
@@ -174,6 +178,7 @@ define('plupload/core/Queueable', [
             abort: function (result) {
                 this.processed = this.percent = 0;
                 this.loaded = this.processed; // for backward compatibility
+                this.failedBytes = this.total;
 
                 this.canRetry = false;
                 this.state = Queueable.FAILED;
@@ -199,6 +204,7 @@ define('plupload/core/Queueable', [
                 this.trigger({
                     type: 'progress',
                     delta: this.processed - previouslyProcessed,
+                    failedBytes: this.failedBytes,
                     loaded: this.processed,
                     total: this.total
                 });

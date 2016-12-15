@@ -96,7 +96,7 @@ define('plupload/core/Queue', [
             this._connected = true;
 
 
-            this._wait = 1000,
+            this._wait = 10000,
 
 
             this._waitHandle = null,
@@ -112,6 +112,7 @@ define('plupload/core/Queue', [
         }
 
 
+        Queue.IDLE = 0;
         Queue.STOPPED = 1;
         Queue.STARTED = 2;
         Queue.PAUSED = 3;
@@ -242,7 +243,9 @@ define('plupload/core/Queue', [
 
                 item.bind('Progress', function(e) {
                     calcStats.call(self);
-                    self.reconnect(e);
+                    if (!self._connected && e.delta > 0) {
+                        reconnect.call(self);
+                    }
                 });
 
                 item.bind('Failed', function(e, result) {
@@ -257,7 +260,7 @@ define('plupload/core/Queue', [
                 });
 
                 item.bind('serverdisconnected', function () {
-                    self.disconnect();
+                    disconnect.call(self);
                 });
 
                 item.bind('Processed', function() {
@@ -411,41 +414,38 @@ define('plupload/core/Queue', [
                     self.unbindAll();
                     self._queue = self.stats = self._startTime = null;
                 }
-            },
-
-            scheduleResume: function () {
-				var self = this;
-
-                if (self._waitHandle) {
-					window.clearTimeout(self._waitHandle);
-				}
-				
-                self._waitHandle = setTimeout(function () {
-                    self.resume();
-                }, self._wait);
-
-                self._wait = Math.min(self._wait * 2, 5 * 60 * 1000); // no longer than 5 minutes
-			},
-
-            disconnect: function () {
-                this.pause();
-                this._connected = false;
-                this.scheduleResume();
-                this.trigger('ServerDisconnected');
-            },
-
-            reconnect: function (data) {
-                if (!this._connected && data.delta > 0) {
-                    this._connected = true;
-                    this._wait = 1000;
-                    if (this._waitHandle) {
-                        window.clearTimeout(this._waitHandle);
-                    }
-                    this.trigger('ServerReconnected');
-                }
             }
         });
 
+        function disconnect() {
+            this._connected = false;
+            if (!this._reconnectHandle) {
+                this.trigger('ServerDisconnected');
+                scheduleResume.call(this);
+            }
+        }
+        
+
+        function reconnect() {
+            this._connected = true;
+            this._wait = 10000;
+            if (this._reconnectHandle) {
+                window.clearTimeout(this._reconnectHandle);
+                this._reconnectHandle = null;
+            }
+            this.trigger('ServerReconnected');
+        }
+
+
+        function scheduleResume() {
+            var self = this;
+            self._reconnectHandle = setTimeout(function () {
+                window.clearTimeout(self._reconnectHandle);
+                self._reconnectHandle = null;
+                self.resume();
+            }, self._wait);
+            self._wait = Math.min(self._wait * 2, 60 * 1000); // no longer than 1 minute
+        }
 
 
         function getCandidate() {
@@ -464,26 +464,28 @@ define('plupload/core/Queue', [
             var self = this;
             var item;
 
-            if (self.stats.processing < self.getOption('max_slots')) {
-                item = getCandidate.call(self);
-                if (item) {
-                    if (self.getOption('pause_before_start') && item.state === Queueable.IDLE) {
-                        self.pauseItem(item.uid);
+            if (self.state !== Queue.PAUSED && self.state !== Queue.STOPPED) {
+                if (self.stats.processing < self.getOption('max_slots')) {
+                    item = getCandidate.call(self);
+                    if (item) {
+                        if (self.getOption('pause_before_start') && item.state === Queueable.IDLE) {
+                            self.pauseItem(item.uid);
 
-                        if (item.trigger('BeforeStart')) {
-                            // if nothing has seized the item, continue
-                            self.resumeItem(item.uid);
+                            if (item.trigger('BeforeStart')) {
+                                // if nothing has seized the item, continue
+                                self.resumeItem(item.uid);
+                            }
+                        } else {
+                            self.stats.processing++;
+                            item.start(self.getOptions());
                         }
-                    } else {
-                        self.stats.processing++;
-                        item.start(self.getOptions());
+                    } else if (!self.stats.processing) { // we ran out of pending and active items too, so we are done
+                        self.stop();
+                        return self.trigger('Done');
                     }
-                } else if (!self.stats.processing) { // we ran out of pending and active items too, so we are done
-                    self.stop();
-                    return self.trigger('Done');
-                }
 
-                Basic.delay.call(self, processNext);
+                    Basic.delay.call(self, processNext);
+                }
             }
         }
 
@@ -495,6 +497,7 @@ define('plupload/core/Queue', [
             self.forEachItem(function(item) {
                 self.stats.processed += item.processed;
                 self.stats.total += item.total;
+                self.stats.failedBytes += item.failedBytes;
 
                 switch (item.state) {
                     case Queueable.DONE:

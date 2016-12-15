@@ -418,11 +418,13 @@ define('plupload/Uploader', [
 						_queueResize = new QueueResize(queueOpts);
 
 						_queueUpload.bind('ServerDisconnected', function (sender, data) {
-							self.trigger('ServerDisconnected', data);
+							self.pause();
+							self.trigger('Disconnected', data);
 						});
 
 						_queueUpload.bind('ServerReconnected', function (sender, data) {
-							self.trigger('ServerReconnected', data);
+							self.resume();
+							self.trigger('Reconnected', data);
 						});
 
 						self.trigger('Init', {
@@ -518,6 +520,29 @@ define('plupload/Uploader', [
 				}
 			},
 
+			/**
+			 * Pauses the upload of the queued files.
+			 *
+			 * @method pause
+			 */
+			pause: function () {
+				Uploader.prototype.pause.call(this);
+				if (_queueUpload) {
+					_queueUpload.pause();
+				}
+			},
+
+			/**
+			 * Resumes the upload of the queued files.
+			 *
+			 * @method resume
+			 */
+			resume: function () {
+				Uploader.prototype.resume.call(this);
+				if (_queueUpload) {
+					_queueUpload.resume();
+				}
+			},
 
 			/**
 			 * Disables/enables browse button on request.

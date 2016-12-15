@@ -24,6 +24,7 @@ define('plupload/File', [
 
 
     function File(fileRef, queueUpload, queueResize) {
+        var _up = null;
         var _file = fileRef;
         var _uid = plupload.guid();
 
@@ -153,29 +154,34 @@ define('plupload/File', [
 
             upload: function() {
                 var self = this;
-                var up = new FileUploader(_file, queueUpload);
+                _up = new FileUploader(_file, queueUpload);
 
-                up.bind('progress', function(e) {
+                _up.bind('progress', function(e) {
                     self.progress(e.loaded, e.total);
                 });
 
-                up.bind('done', function(e, result) {
+                _up.bind('done', function(e, result) {
                     self.done(result);
                 });
 
-                up.bind('failed', function(e, result) {
+                _up.bind('failed', function(e, result) {
                     this.destroy();
                     self.failed(result);
                 });
 
-                up.bind('completed', function(e, result) {
+                _up.bind('completed', function(e, result) {
                     self.completed(result);
                 });
 
-               up.start(self.getOptions());
+                _up.start(self.getOptions());
             },
 
-
+            stop: function () {
+                File.prototype.stop.call(this);
+                if (_up) {
+                    _up.destroy();
+                }
+            },
 
             destroy: function() {
                 File.prototype.destroy.call(this);
