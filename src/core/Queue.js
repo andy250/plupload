@@ -164,13 +164,15 @@ define('plupload/core/Queue', [
 
                 this._queue.each(function(item) {
                     if (Basic.inArray(item.state, [Queueable.PROCESSING, Queueable.RESUMED]) !== -1) {
-                        self.pauseItem(item);
+                        self.pauseItem(item.uid);
                     }
                 });
 
                 self.state = Queue.PAUSED;
                 this.trigger('StateChanged', self.state, prevState);
                 self.trigger('Paused');
+
+                return true;
             },
 
             resume: function () {
@@ -183,14 +185,16 @@ define('plupload/core/Queue', [
 
                 this._queue.each(function(item) {
                     if (Basic.inArray(item.state, [Queueable.PAUSED, Queueable.IDLE]) !== -1) {
-                        self.resumeItem(item);
+                        self.resumeItem(item.uid);
                     }
                 });
 
                 self.state = Queue.STARTED;
                 self.trigger('StateChanged', self.state, prevState);
                 
+                // TODO: when called on Uploader this will restart the  whole file after pause/resume. Fix it!
                 processNext.call(self);
+                
                 return true;
             },
 

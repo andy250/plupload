@@ -6178,13 +6178,15 @@ define('plupload/core/Queue', [
 
                 this._queue.each(function(item) {
                     if (Basic.inArray(item.state, [Queueable.PROCESSING, Queueable.RESUMED]) !== -1) {
-                        self.pauseItem(item);
+                        self.pauseItem(item.uid);
                     }
                 });
 
                 self.state = Queue.PAUSED;
                 this.trigger('StateChanged', self.state, prevState);
                 self.trigger('Paused');
+
+                return true;
             },
 
             resume: function () {
@@ -6197,7 +6199,7 @@ define('plupload/core/Queue', [
 
                 this._queue.each(function(item) {
                     if (Basic.inArray(item.state, [Queueable.PAUSED, Queueable.IDLE]) !== -1) {
-                        self.resumeItem(item);
+                        self.resumeItem(item.uid);
                     }
                 });
 
@@ -6205,7 +6207,12 @@ define('plupload/core/Queue', [
                 self.trigger('StateChanged', self.state, prevState);
                 
                 processNext.call(self);
+                
                 return true;
+            },
+
+            continue: function () {
+                processNext.call(this);
             },
 
             /**
@@ -10032,10 +10039,11 @@ define('plupload/Uploader', [
 			 * @method pause
 			 */
 			pause: function () {
-				Uploader.prototype.pause.call(this);
+				var paused = Uploader.prototype.pause.call(this);
 				if (_queueUpload) {
 					_queueUpload.pause();
 				}
+				return paused;
 			},
 
 			/**
@@ -10044,9 +10052,20 @@ define('plupload/Uploader', [
 			 * @method resume
 			 */
 			resume: function () {
-				Uploader.prototype.resume.call(this);
+				var resumed = Uploader.prototype.resume.call(this);
 				if (_queueUpload) {
 					_queueUpload.resume();
+				}
+				return resumed;
+			},
+
+			/**
+			 * Makes sure that the uploader is running.
+			 */
+			continue: function () {
+				Uploader.prototype.continue.call(this);
+				if (_queueUpload) {
+					_queueUpload.continue();
 				}
 			},
 

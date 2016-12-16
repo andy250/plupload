@@ -526,10 +526,11 @@ define('plupload/Uploader', [
 			 * @method pause
 			 */
 			pause: function () {
-				Uploader.prototype.pause.call(this);
+				var paused = Uploader.prototype.pause.call(this);
 				if (_queueUpload) {
 					_queueUpload.pause();
 				}
+				return paused;
 			},
 
 			/**
@@ -538,10 +539,11 @@ define('plupload/Uploader', [
 			 * @method resume
 			 */
 			resume: function () {
-				Uploader.prototype.resume.call(this);
+				var resumed = Uploader.prototype.resume.call(this);
 				if (_queueUpload) {
 					_queueUpload.resume();
 				}
+				return resumed;
 			},
 
 			/**
