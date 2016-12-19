@@ -192,11 +192,13 @@ define('plupload/FileUploader', [
 			},
 
 			destroy: function() {
-				_chunks.each(function (item) {
-					queue.removeItem(item.uid);
-				});
-				FileUploader.prototype.destroy.call(this);
-				queue = _file = null;
+				if (this.state !== Queueable.DESTROYED) {
+					_chunks.each(function (item) {
+						queue.removeItem(item.uid);
+					});
+					queue = _file = null;
+					FileUploader.prototype.destroy.call(this);
+				}
 			}
 		});
 

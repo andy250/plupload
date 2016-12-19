@@ -178,13 +178,14 @@ define('plupload/File', [
 
             stop: function () {
                 File.prototype.stop.call(this);
-                if (_up) {
-                    _up.destroy();
-                }
             },
 
             destroy: function() {
                 File.prototype.destroy.call(this);
+                if (_up) {
+                    _up.destroy();
+                    _up = null;
+                }
                 _file = null;
             }
         });

@@ -78,6 +78,7 @@ define('plupload/ChunkUploader', [
                     };
 
                     _xhr.onloadend = function () {
+                        _xhr.onload = _xhr.onloadend = _xhr.onerror = null;
                         _xhr = null;
                     };
 
@@ -120,6 +121,7 @@ define('plupload/ChunkUploader', [
 
                 if (_xhr) {
                     _xhr.abort();
+                    _xhr.onload = _xhr.onloadend = _xhr.onerror = null;
                     _xhr = null;
                 }
             },
@@ -145,6 +147,11 @@ define('plupload/ChunkUploader', [
                 } else {
                     callback(_options.multipart ? _options.url : buildUrl(_options.url, _options.params));
                 }
+            },
+
+            continue: function () {
+                this.stop();
+                ChunkUploader.prototype.continue.call(this);
             }
         });
 

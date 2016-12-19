@@ -514,7 +514,10 @@ define('plupload/Uploader', [
 			 */
 			stop: function() {
 				Uploader.prototype.stop.call(this);
-
+				if (_queueUpload) {
+					_queueUpload.stop();
+				}
+				
 				if (this.state != plupload.STOPPED) {
 					this.trigger('CancelUpload');
 				}
@@ -544,6 +547,18 @@ define('plupload/Uploader', [
 					_queueUpload.resume();
 				}
 				return resumed;
+			},
+
+			/** Makes sure the upload queue continues (e.g. after hibernation) 
+			 * 
+			 * @method continue
+			 */
+			continue: function () {
+				if (this.state === Queue.STARTED) {
+					if (_queueUpload) {
+						_queueUpload.continue();
+					}
+				}
 			},
 
 			/**

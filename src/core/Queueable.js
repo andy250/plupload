@@ -137,6 +137,12 @@ define('plupload/core/Queueable', [
                 this.trigger('paused');
             },
 
+            
+            resume: function () {
+                this.state = Queueable.PROCESSING;
+                this.trigger('resumed');
+            },
+
 
             stop: function() {
                 this.processed = this.percent = 0;
@@ -144,6 +150,11 @@ define('plupload/core/Queueable', [
 
                 this.state = Queueable.IDLE;
                 this.trigger('stopped');
+            },
+
+
+            continue: function () {
+                this.trigger('continued');
             },
 
 
