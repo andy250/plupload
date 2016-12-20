@@ -4095,6 +4095,267 @@ define('moxie/file/Blob', [
 	return Blob;
 });
 
+// Included from: src/moxie/src/javascript/file/File.js
+
+/**
+ * File.js
+ *
+ * Copyright 2013, Moxiecode Systems AB
+ * Released under GPL License.
+ *
+ * License: http://www.plupload.com/license
+ * Contributing: http://www.plupload.com/contributing
+ */
+
+define('moxie/file/File', [
+	'moxie/core/utils/Basic',
+	'moxie/core/utils/Mime',
+	'moxie/file/Blob'
+], function(Basic, Mime, Blob) {
+	/**
+	@class moxie/file/File
+	@extends Blob
+	@constructor
+	@param {String} ruid Unique id of the runtime, to which this blob belongs to
+	@param {Object} file Object "Native" file object, as it is represented in the runtime
+	*/
+	function File(ruid, file) {
+		if (!file) { // avoid extra errors in case we overlooked something
+			file = {};
+		}
+
+		Blob.apply(this, arguments);
+
+		if (!this.type) {
+			this.type = Mime.getFileMime(file.name);
+		}
+
+		// sanitize file name or generate new one
+		var name;
+		if (file.name) {
+			name = file.name.replace(/\\/g, '/');
+			name = name.substr(name.lastIndexOf('/') + 1);
+		} else if (this.type) {
+			var prefix = this.type.split('/')[0];
+			name = Basic.guid((prefix !== '' ? prefix : 'file') + '_');
+			
+			if (Mime.extensions[this.type]) {
+				name += '.' + Mime.extensions[this.type][0]; // append proper extension if possible
+			}
+		}
+		
+		
+		Basic.extend(this, {
+			/**
+			File name
+
+			@property name
+			@type {String}
+			@default UID
+			*/
+			name: name || Basic.guid('file_'),
+
+			/**
+			Relative path to the file inside a directory
+
+			@property relativePath
+			@type {String}
+			@default ''
+			*/
+			relativePath: '',
+			
+			/**
+			Date of last modification
+
+			@property lastModifiedDate
+			@type {String}
+			@default now
+			*/
+			lastModifiedDate: file.lastModifiedDate || (new Date()).toLocaleString() // Thu Aug 23 2012 19:40:00 GMT+0400 (GET)
+		});
+	}
+
+	File.prototype = Blob.prototype;
+
+	return File;
+});
+
+// Included from: src/moxie/src/javascript/file/FileDrop.js
+
+/**
+ * FileDrop.js
+ *
+ * Copyright 2013, Moxiecode Systems AB
+ * Released under GPL License.
+ *
+ * License: http://www.plupload.com/license
+ * Contributing: http://www.plupload.com/contributing
+ */
+
+define('moxie/file/FileDrop', [
+	'moxie/core/I18n',
+	'moxie/core/utils/Dom',
+	'moxie/core/Exceptions',
+	'moxie/core/utils/Basic',
+	'moxie/core/utils/Env',
+	'moxie/file/File',
+	'moxie/runtime/RuntimeClient',
+	'moxie/core/EventTarget',
+	'moxie/core/utils/Mime'
+], function(I18n, Dom, x, Basic, Env, File, RuntimeClient, EventTarget, Mime) {
+	/**
+	Turn arbitrary DOM element to a drop zone accepting files. Converts selected files to _File_ objects, to be used 
+	in conjunction with _Image_, preloaded in memory with _FileReader_ or uploaded to a server through 
+	_XMLHttpRequest_.
+
+	@example
+		<div id="drop_zone">
+			Drop files here
+		</div>
+		<br />
+		<div id="filelist"></div>
+
+		<script type="text/javascript">
+			var fileDrop = new mOxie.FileDrop('drop_zone'), fileList = mOxie.get('filelist');
+
+			fileDrop.ondrop = function() {
+				mOxie.each(this.files, function(file) {
+					fileList.innerHTML += '<div>' + file.name + '</div>';
+				});
+			};
+
+			fileDrop.init();
+		</script>
+
+	@class moxie/file/FileDrop
+	@constructor
+	@extends EventTarget
+	@uses RuntimeClient
+	@param {Object|String} options If options has typeof string, argument is considered as options.drop_zone
+		@param {String|DOMElement} options.drop_zone DOM Element to turn into a drop zone
+		@param {Array} [options.accept] Array of mime types to accept. By default accepts all
+		@param {Object|String} [options.required_caps] Set of required capabilities, that chosen runtime must support
+	*/
+	var dispatches = [
+		/**
+		Dispatched when runtime is connected and drop zone is ready to accept files.
+
+		@event ready
+		@param {Object} event
+		*/
+		'ready', 
+
+		/**
+		Dispatched when dragging cursor enters the drop zone.
+
+		@event dragenter
+		@param {Object} event
+		*/
+		'dragenter',
+
+		/**
+		Dispatched when dragging cursor leaves the drop zone.
+
+		@event dragleave
+		@param {Object} event
+		*/
+		'dragleave', 
+
+		/**
+		Dispatched when file is dropped onto the drop zone.
+
+		@event drop
+		@param {Object} event
+		*/
+		'drop', 
+
+		/**
+		Dispatched if error occurs.
+
+		@event error
+		@param {Object} event
+		*/
+		'error'
+	];
+
+	function FileDrop(options) {
+		if (MXI_DEBUG) {
+			Env.log("Instantiating FileDrop...");	
+		}
+
+		var self = this, defaults;
+
+		// if flat argument passed it should be drop_zone id
+		if (typeof(options) === 'string') {
+			options = { drop_zone : options };
+		}
+
+		// figure out the options
+		defaults = {
+			accept: [{
+				title: I18n.translate('All Files'),
+				extensions: '*'
+			}],
+			required_caps: {
+				drag_and_drop: true
+			}
+		};
+		
+		options = typeof(options) === 'object' ? Basic.extend({}, defaults, options) : defaults;
+
+		// this will help us to find proper default container
+		options.container = Dom.get(options.drop_zone) || document.body;
+
+		// make container relative, if it is not
+		if (Dom.getStyle(options.container, 'position') === 'static') {
+			options.container.style.position = 'relative';
+		}
+					
+		// normalize accept option (could be list of mime types or array of title/extensions pairs)
+		if (typeof(options.accept) === 'string') {
+			options.accept = Mime.mimes2extList(options.accept);
+		}
+
+		RuntimeClient.call(self);
+
+		Basic.extend(self, {
+			uid: Basic.guid('uid_'),
+
+			ruid: null,
+
+			files: null,
+
+			init: function() {		
+				self.bind('RuntimeInit', function(e, runtime) {
+					self.ruid = runtime.uid;
+					runtime.exec.call(self, 'FileDrop', 'init', options);
+					self.dispatchEvent('ready');
+				});
+							
+				// runtime needs: options.required_features, options.runtime_order and options.container
+				self.connectRuntime(options); // throws RuntimeError
+			},
+
+			destroy: function() {
+				var runtime = this.getRuntime();
+				if (runtime) {
+					runtime.exec.call(this, 'FileDrop', 'destroy');
+					this.disconnectRuntime();
+				}
+				this.files = null;
+				
+				this.unbindAll();
+			}
+		});
+
+		this.handleEventProps(dispatches);
+	}
+
+	FileDrop.prototype = EventTarget.instance;
+
+	return FileDrop;
+});
+
 // Included from: src/moxie/src/javascript/file/FileReader.js
 
 /**
@@ -4399,8 +4660,9 @@ define('plupload', [
 	'moxie/core/EventTarget',
 	'moxie/runtime/Runtime',
 	'moxie/file/FileInput',
+	'moxie/file/FileDrop',
 	'moxie/file/FileReader'
-], function(I18n, Env, Basic, Dom, Events, Url, EventTarget, Runtime, FileInput, FileReader) {
+], function(I18n, Env, Basic, Dom, Events, Url, EventTarget, Runtime, FileInput,FileDrop, FileReader) {
 
 
 	// redifine event dispatcher for Flash/Silverlight runtimes
@@ -5052,7 +5314,23 @@ define('plupload', [
 			for _browse\_button_.
 			@param {Object|String} [options.required_caps] Set of required capabilities, that chosen runtime must support.
 		*/
+		
 		FileInput: FileInput,
+
+		/**
+		Turn arbitrary DOM element to a drop zone accepting files. Converts selected files to _File_ objects, to be used 
+		in conjunction with _Image_, preloaded in memory with _FileReader_ or uploaded to a server through _XMLHttpRequest_.
+		@class plupload.FileDrop
+		@private
+		@constructor
+		@extends EventTarget
+		@uses RuntimeClient
+		@param {Object|String} options If options has typeof string, argument is considered as options.drop_zone
+			@param {String|DOMElement} options.drop_zone DOM Element to turn into a drop zone
+			@param {Array} [options.accept] Array of mime types to accept. By default accepts all
+			@param {Object|String} [options.required_caps] Set of required capabilities, that chosen runtime must support
+		*/
+		FileDrop: FileDrop,
 
 		/**
 		Utility for preloading o.Blob/o.File objects in memory. By design closely follows [W3C FileReader](http://www.w3.org/TR/FileAPI/#dfn-filereader)
@@ -5234,267 +5512,6 @@ define('plupload/core/Collection', [
     };
 
     return Collection;
-});
-
-// Included from: src/moxie/src/javascript/file/File.js
-
-/**
- * File.js
- *
- * Copyright 2013, Moxiecode Systems AB
- * Released under GPL License.
- *
- * License: http://www.plupload.com/license
- * Contributing: http://www.plupload.com/contributing
- */
-
-define('moxie/file/File', [
-	'moxie/core/utils/Basic',
-	'moxie/core/utils/Mime',
-	'moxie/file/Blob'
-], function(Basic, Mime, Blob) {
-	/**
-	@class moxie/file/File
-	@extends Blob
-	@constructor
-	@param {String} ruid Unique id of the runtime, to which this blob belongs to
-	@param {Object} file Object "Native" file object, as it is represented in the runtime
-	*/
-	function File(ruid, file) {
-		if (!file) { // avoid extra errors in case we overlooked something
-			file = {};
-		}
-
-		Blob.apply(this, arguments);
-
-		if (!this.type) {
-			this.type = Mime.getFileMime(file.name);
-		}
-
-		// sanitize file name or generate new one
-		var name;
-		if (file.name) {
-			name = file.name.replace(/\\/g, '/');
-			name = name.substr(name.lastIndexOf('/') + 1);
-		} else if (this.type) {
-			var prefix = this.type.split('/')[0];
-			name = Basic.guid((prefix !== '' ? prefix : 'file') + '_');
-			
-			if (Mime.extensions[this.type]) {
-				name += '.' + Mime.extensions[this.type][0]; // append proper extension if possible
-			}
-		}
-		
-		
-		Basic.extend(this, {
-			/**
-			File name
-
-			@property name
-			@type {String}
-			@default UID
-			*/
-			name: name || Basic.guid('file_'),
-
-			/**
-			Relative path to the file inside a directory
-
-			@property relativePath
-			@type {String}
-			@default ''
-			*/
-			relativePath: '',
-			
-			/**
-			Date of last modification
-
-			@property lastModifiedDate
-			@type {String}
-			@default now
-			*/
-			lastModifiedDate: file.lastModifiedDate || (new Date()).toLocaleString() // Thu Aug 23 2012 19:40:00 GMT+0400 (GET)
-		});
-	}
-
-	File.prototype = Blob.prototype;
-
-	return File;
-});
-
-// Included from: src/moxie/src/javascript/file/FileDrop.js
-
-/**
- * FileDrop.js
- *
- * Copyright 2013, Moxiecode Systems AB
- * Released under GPL License.
- *
- * License: http://www.plupload.com/license
- * Contributing: http://www.plupload.com/contributing
- */
-
-define('moxie/file/FileDrop', [
-	'moxie/core/I18n',
-	'moxie/core/utils/Dom',
-	'moxie/core/Exceptions',
-	'moxie/core/utils/Basic',
-	'moxie/core/utils/Env',
-	'moxie/file/File',
-	'moxie/runtime/RuntimeClient',
-	'moxie/core/EventTarget',
-	'moxie/core/utils/Mime'
-], function(I18n, Dom, x, Basic, Env, File, RuntimeClient, EventTarget, Mime) {
-	/**
-	Turn arbitrary DOM element to a drop zone accepting files. Converts selected files to _File_ objects, to be used 
-	in conjunction with _Image_, preloaded in memory with _FileReader_ or uploaded to a server through 
-	_XMLHttpRequest_.
-
-	@example
-		<div id="drop_zone">
-			Drop files here
-		</div>
-		<br />
-		<div id="filelist"></div>
-
-		<script type="text/javascript">
-			var fileDrop = new mOxie.FileDrop('drop_zone'), fileList = mOxie.get('filelist');
-
-			fileDrop.ondrop = function() {
-				mOxie.each(this.files, function(file) {
-					fileList.innerHTML += '<div>' + file.name + '</div>';
-				});
-			};
-
-			fileDrop.init();
-		</script>
-
-	@class moxie/file/FileDrop
-	@constructor
-	@extends EventTarget
-	@uses RuntimeClient
-	@param {Object|String} options If options has typeof string, argument is considered as options.drop_zone
-		@param {String|DOMElement} options.drop_zone DOM Element to turn into a drop zone
-		@param {Array} [options.accept] Array of mime types to accept. By default accepts all
-		@param {Object|String} [options.required_caps] Set of required capabilities, that chosen runtime must support
-	*/
-	var dispatches = [
-		/**
-		Dispatched when runtime is connected and drop zone is ready to accept files.
-
-		@event ready
-		@param {Object} event
-		*/
-		'ready', 
-
-		/**
-		Dispatched when dragging cursor enters the drop zone.
-
-		@event dragenter
-		@param {Object} event
-		*/
-		'dragenter',
-
-		/**
-		Dispatched when dragging cursor leaves the drop zone.
-
-		@event dragleave
-		@param {Object} event
-		*/
-		'dragleave', 
-
-		/**
-		Dispatched when file is dropped onto the drop zone.
-
-		@event drop
-		@param {Object} event
-		*/
-		'drop', 
-
-		/**
-		Dispatched if error occurs.
-
-		@event error
-		@param {Object} event
-		*/
-		'error'
-	];
-
-	function FileDrop(options) {
-		if (MXI_DEBUG) {
-			Env.log("Instantiating FileDrop...");	
-		}
-
-		var self = this, defaults;
-
-		// if flat argument passed it should be drop_zone id
-		if (typeof(options) === 'string') {
-			options = { drop_zone : options };
-		}
-
-		// figure out the options
-		defaults = {
-			accept: [{
-				title: I18n.translate('All Files'),
-				extensions: '*'
-			}],
-			required_caps: {
-				drag_and_drop: true
-			}
-		};
-		
-		options = typeof(options) === 'object' ? Basic.extend({}, defaults, options) : defaults;
-
-		// this will help us to find proper default container
-		options.container = Dom.get(options.drop_zone) || document.body;
-
-		// make container relative, if it is not
-		if (Dom.getStyle(options.container, 'position') === 'static') {
-			options.container.style.position = 'relative';
-		}
-					
-		// normalize accept option (could be list of mime types or array of title/extensions pairs)
-		if (typeof(options.accept) === 'string') {
-			options.accept = Mime.mimes2extList(options.accept);
-		}
-
-		RuntimeClient.call(self);
-
-		Basic.extend(self, {
-			uid: Basic.guid('uid_'),
-
-			ruid: null,
-
-			files: null,
-
-			init: function() {		
-				self.bind('RuntimeInit', function(e, runtime) {
-					self.ruid = runtime.uid;
-					runtime.exec.call(self, 'FileDrop', 'init', options);
-					self.dispatchEvent('ready');
-				});
-							
-				// runtime needs: options.required_features, options.runtime_order and options.container
-				self.connectRuntime(options); // throws RuntimeError
-			},
-
-			destroy: function() {
-				var runtime = this.getRuntime();
-				if (runtime) {
-					runtime.exec.call(this, 'FileDrop', 'destroy');
-					this.disconnectRuntime();
-				}
-				this.files = null;
-				
-				this.unbindAll();
-			}
-		});
-
-		this.handleEventProps(dispatches);
-	}
-
-	FileDrop.prototype = EventTarget.instance;
-
-	return FileDrop;
 });
 
 // Included from: src/core/Optionable.js
@@ -15657,6 +15674,6 @@ define("moxie/runtime/html4/image/Image", [
 	return (extensions.Image = Image);
 });
 
-expose(["moxie/core/utils/Basic","moxie/core/I18n","moxie/core/utils/Env","moxie/core/utils/Dom","moxie/core/utils/Events","moxie/core/utils/Url","moxie/core/Exceptions","moxie/core/EventTarget","moxie/runtime/Runtime","moxie/core/utils/Mime","moxie/runtime/RuntimeClient","moxie/file/FileInput","moxie/core/utils/Encode","moxie/file/Blob","moxie/file/FileReader","plupload","moxie/file/File","moxie/file/FileDrop","moxie/runtime/RuntimeTarget","moxie/xhr/FormData","moxie/xhr/XMLHttpRequest","plupload/FileUploader","moxie/runtime/Transporter","moxie/image/Image","plupload/File","plupload/Uploader","moxie/runtime/html5/image/ResizerCanvas"]);
+expose(["moxie/core/utils/Basic","moxie/core/I18n","moxie/core/utils/Env","moxie/core/utils/Dom","moxie/core/utils/Events","moxie/core/utils/Url","moxie/core/Exceptions","moxie/core/EventTarget","moxie/runtime/Runtime","moxie/core/utils/Mime","moxie/runtime/RuntimeClient","moxie/file/FileInput","moxie/core/utils/Encode","moxie/file/Blob","moxie/file/File","moxie/file/FileDrop","moxie/file/FileReader","plupload","moxie/runtime/RuntimeTarget","moxie/xhr/FormData","moxie/xhr/XMLHttpRequest","plupload/FileUploader","moxie/runtime/Transporter","moxie/image/Image","plupload/File","plupload/Uploader","moxie/runtime/html5/image/ResizerCanvas"]);
 })(this);
 }));

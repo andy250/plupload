@@ -25,8 +25,9 @@ define('plupload', [
 	'moxie/core/EventTarget',
 	'moxie/runtime/Runtime',
 	'moxie/file/FileInput',
+	'moxie/file/FileDrop',
 	'moxie/file/FileReader'
-], function(I18n, Env, Basic, Dom, Events, Url, EventTarget, Runtime, FileInput, FileReader) {
+], function(I18n, Env, Basic, Dom, Events, Url, EventTarget, Runtime, FileInput,FileDrop, FileReader) {
 
 
 	// redifine event dispatcher for Flash/Silverlight runtimes
@@ -678,7 +679,23 @@ define('plupload', [
 			for _browse\_button_.
 			@param {Object|String} [options.required_caps] Set of required capabilities, that chosen runtime must support.
 		*/
+		
 		FileInput: FileInput,
+
+		/**
+		Turn arbitrary DOM element to a drop zone accepting files. Converts selected files to _File_ objects, to be used 
+		in conjunction with _Image_, preloaded in memory with _FileReader_ or uploaded to a server through _XMLHttpRequest_.
+		@class plupload.FileDrop
+		@private
+		@constructor
+		@extends EventTarget
+		@uses RuntimeClient
+		@param {Object|String} options If options has typeof string, argument is considered as options.drop_zone
+			@param {String|DOMElement} options.drop_zone DOM Element to turn into a drop zone
+			@param {Array} [options.accept] Array of mime types to accept. By default accepts all
+			@param {Object|String} [options.required_caps] Set of required capabilities, that chosen runtime must support
+		*/
+		FileDrop: FileDrop,
 
 		/**
 		Utility for preloading o.Blob/o.File objects in memory. By design closely follows [W3C FileReader](http://www.w3.org/TR/FileAPI/#dfn-filereader)

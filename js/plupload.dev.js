@@ -112,7 +112,7 @@
 	exports.defined = defined;
 	exports.require = require;
 
-	expose(["moxie/core/utils/Basic","moxie/core/I18n","moxie/core/utils/Env","moxie/core/utils/Dom","moxie/core/utils/Events","moxie/core/utils/Url","moxie/core/Exceptions","moxie/core/EventTarget","moxie/runtime/Runtime","moxie/core/utils/Mime","moxie/runtime/RuntimeClient","moxie/file/FileInput","moxie/core/utils/Encode","moxie/file/Blob","moxie/file/FileReader","plupload","moxie/file/File","moxie/file/FileDrop","moxie/runtime/RuntimeTarget","moxie/xhr/FormData","moxie/xhr/XMLHttpRequest","plupload/FileUploader","moxie/runtime/Transporter","moxie/image/Image","plupload/File","plupload/Uploader","moxie/runtime/html5/image/ResizerCanvas"]);
+	expose(["moxie/core/utils/Basic","moxie/core/I18n","moxie/core/utils/Env","moxie/core/utils/Dom","moxie/core/utils/Events","moxie/core/utils/Url","moxie/core/Exceptions","moxie/core/EventTarget","moxie/runtime/Runtime","moxie/core/utils/Mime","moxie/runtime/RuntimeClient","moxie/file/FileInput","moxie/core/utils/Encode","moxie/file/Blob","moxie/file/File","moxie/file/FileDrop","moxie/file/FileReader","plupload","moxie/runtime/RuntimeTarget","moxie/xhr/FormData","moxie/xhr/XMLHttpRequest","plupload/FileUploader","moxie/runtime/Transporter","moxie/image/Image","plupload/File","plupload/Uploader","moxie/runtime/html5/image/ResizerCanvas"]);
 
 	load('../src/moxie/src/javascript/core/utils/Basic.js');
 	load('../src/moxie/src/javascript/core/I18n.js');
@@ -128,11 +128,11 @@
 	load('../src/moxie/src/javascript/file/FileInput.js');
 	load('../src/moxie/src/javascript/core/utils/Encode.js');
 	load('../src/moxie/src/javascript/file/Blob.js');
+	load('../src/moxie/src/javascript/file/File.js');
+	load('../src/moxie/src/javascript/file/FileDrop.js');
 	load('../src/moxie/src/javascript/file/FileReader.js');
 	load('../src/plupload.js');
 	load('../src/core/Collection.js');
-	load('../src/moxie/src/javascript/file/File.js');
-	load('../src/moxie/src/javascript/file/FileDrop.js');
 	load('../src/core/Optionable.js');
 	load('../src/core/Queueable.js');
 	load('../src/core/Stats.js');
@@ -190,4 +190,4 @@
 	writeScripts();
 })(this);
 
-// $hash: 63260e3bd99505c097cb9b3ada5993e6
+// $hash: 8431b61f4a9bb8baf95d763ddb25c469
