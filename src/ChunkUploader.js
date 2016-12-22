@@ -158,9 +158,9 @@ define('plupload/ChunkUploader', [
                 }
             },
 
-            continue: function () {
+            continueProcessing: function () {
                 this.stop();
-                ChunkUploader.prototype.continue.call(this);
+                ChunkUploader.prototype.continueProcessing.call(this);
             }
         });
 

@@ -197,12 +197,12 @@ define('plupload/core/Queue', [
                 return true;
             },
 
-            continue: function () {
+            continueProcessing: function () {
                 var self = this;
                 if (self.state === Queue.STARTED) {
                     self._queue.each(function (item) {
                         if (item.state === Queueable.PROCESSING) {
-                            item.continue();
+                            item.continueProcessing();
                         }
                     });
                     calcStats.call(self);

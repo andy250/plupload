@@ -153,7 +153,7 @@ define('plupload/core/Queueable', [
             },
 
 
-            continue: function () {
+            continueProcessing: function () {
                 this.trigger('continued');
             },
 

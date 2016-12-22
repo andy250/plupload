@@ -552,12 +552,12 @@ define('plupload/Uploader', [
 
 			/** Makes sure the upload queue continues (e.g. after hibernation) 
 			 * 
-			 * @method continue
+			 * @method continueProcessing
 			 */
-			continue: function () {
+			continueProcessing: function () {
 				if (this.state === Queue.STARTED) {
 					if (_queueUpload) {
-						_queueUpload.continue();
+						_queueUpload.continueProcessing();
 					}
 				}
 			},

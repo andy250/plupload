@@ -5793,7 +5793,7 @@ define('plupload/core/Queueable', [
             },
 
 
-            continue: function () {
+            continueProcessing: function () {
                 this.trigger('continued');
             },
 
@@ -6239,12 +6239,12 @@ define('plupload/core/Queue', [
                 return true;
             },
 
-            continue: function () {
+            continueProcessing: function () {
                 var self = this;
                 if (self.state === Queue.STARTED) {
                     self._queue.each(function (item) {
                         if (item.state === Queueable.PROCESSING) {
-                            item.continue();
+                            item.continueProcessing();
                         }
                     });
                     calcStats.call(self);
@@ -8118,9 +8118,9 @@ define('plupload/ChunkUploader', [
                 }
             },
 
-            continue: function () {
+            continueProcessing: function () {
                 this.stop();
-                ChunkUploader.prototype.continue.call(this);
+                ChunkUploader.prototype.continueProcessing.call(this);
             }
         });
 
@@ -10131,12 +10131,12 @@ define('plupload/Uploader', [
 
 			/** Makes sure the upload queue continues (e.g. after hibernation) 
 			 * 
-			 * @method continue
+			 * @method continueProcessing
 			 */
-			continue: function () {
+			continueProcessing: function () {
 				if (this.state === Queue.STARTED) {
 					if (_queueUpload) {
-						_queueUpload.continue();
+						_queueUpload.continueProcessing();
 					}
 				}
 			},
