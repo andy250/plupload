@@ -272,7 +272,8 @@ define('plupload/Uploader', [
 				resize: false,
 				backward_compatibility: true,
 				stop_file_on_chunk_fail: true,
-				chunk_upload_url: null
+				chunk_upload_url: null,
+				assumed_upload_speed: 500 * 1024 // assume 500 kbytes/sec - later upload timeout is calculated based on this
 			},
 			options
 		);

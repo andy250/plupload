@@ -50,6 +50,9 @@ define('plupload/ChunkUploader', [
 
                 self.getChunkUploadUrl(function (url) {
                     _xhr = new XMLHttpRequest();
+                    if (_options.chunk_size && _options.assumed_upload_speed) {
+                        _xhr.timeout = Math.floor(1000 * (_options.chunk_size / _options.assumed_upload_speed)); // round to milliseconds
+                    }
 
                     if (_xhr.upload) {
                         _xhr.upload.onprogress = function (e) {
