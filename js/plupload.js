@@ -6642,7 +6642,8 @@ define('plupload/QueueUpload', [
                 file_data_name: 'file',
                 send_file_name: true,
                 stop_file_on_chunk_fail: true,
-                chunk_upload_url: null
+                chunk_upload_url: null,
+                assumed_upload_speed: 0
             });
 
             this.setOption = function(option, value) {
@@ -7873,6 +7874,15 @@ define("moxie/xhr/XMLHttpRequest", [
 					loadEnd();
 				});
 
+				_xhr.bind('Timeout', function(e) {
+					_error_flag = true;
+					_p('readyState', XMLHttpRequest.DONE);
+					self.dispatchEvent('readystatechange');
+					_upload_complete_flag = true;
+					self.dispatchEvent(e);
+					loadEnd();
+				});
+
 				runtime.exec.call(_xhr, 'XMLHttpRequest', 'send', {
 					url: _url,
 					method: _method,
@@ -7884,6 +7894,7 @@ define("moxie/xhr/XMLHttpRequest", [
 					encoding: _encoding,
 					responseType: self.responseType,
 					withCredentials: self.withCredentials,
+					timeout: self.timeout,
 					options: _options
 				}, data);
 			}
@@ -7999,6 +8010,9 @@ define('plupload/ChunkUploader', [
 
                 self.getChunkUploadUrl(function (url) {
                     _xhr = new XMLHttpRequest();
+                    if (_options.chunk_size && _options.assumed_upload_speed) {
+                        _xhr.timeout = Math.floor(1000 * (_options.chunk_size / _options.assumed_upload_speed)); // round to milliseconds
+                    }
 
                     if (_xhr.upload) {
                         _xhr.upload.onprogress = function (e) {
@@ -8023,6 +8037,12 @@ define('plupload/ChunkUploader', [
                     _xhr.onerror = function () {
                         self.failed({
                             status: 503     // service unavailable
+                        });
+                    };
+
+                    _xhr.ontimeout = function () {
+                        self.failed({
+                            status: 599      // service timeout - unofficial
                         });
                     };
 
@@ -8262,7 +8282,7 @@ define('plupload/FileUploader', [
 				});
 
 				up.bind('aborted', function(e, result) {
-					if (result.status === 503) {
+					if (Basic.inArray(result.status, [503, 599]) > -1) {
 						// server unavialable
 						this.serverDisconnected();
 					} else {
@@ -9831,7 +9851,8 @@ define('plupload/Uploader', [
 				resize: false,
 				backward_compatibility: true,
 				stop_file_on_chunk_fail: true,
-				chunk_upload_url: null
+				chunk_upload_url: null,
+				assumed_upload_speed: 500 * 1024 // assume 500 kbytes/sec - later upload timeout is calculated based on this
 			},
 			options
 		);
@@ -11736,6 +11757,12 @@ define("moxie/runtime/html5/xhr/XMLHttpRequest", [
 						target.trigger(e);
 					});
 
+					if ('timeout' in _xhr && meta.timeout) {
+						_xhr.addEventListener('timeout', function(e) {
+							target.trigger(e);
+						});
+					}
+
 					_xhr.upload.addEventListener('progress', function(e) {
 						target.trigger({
 							type: 'UploadProgress',
@@ -11743,6 +11770,7 @@ define("moxie/runtime/html5/xhr/XMLHttpRequest", [
 							total: e.total
 						});
 					});
+
 				// ... otherwise simulate XHR L2
 				} else {
 					_xhr.onreadystatechange = function onReadyStateChange() {
@@ -11812,6 +11840,11 @@ define("moxie/runtime/html5/xhr/XMLHttpRequest", [
 					} else {
 						_xhr.responseType = meta.responseType;
 					}
+				}
+
+				// timeout
+				if ('timeout' in _xhr && meta.timeout) {
+					_xhr.timeout = meta.timeout;
 				}
 
 				// send ...

@@ -123,7 +123,7 @@ define('plupload/FileUploader', [
 				});
 
 				up.bind('aborted', function(e, result) {
-					if (result.status === 503) {
+					if (Basic.inArray(result.status, [503, 599]) > -1) {
 						// server unavialable
 						this.serverDisconnected();
 					} else {

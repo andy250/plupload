@@ -80,6 +80,12 @@ define('plupload/ChunkUploader', [
                         });
                     };
 
+                    _xhr.ontimeout = function () {
+                        self.failed({
+                            status: 599      // service timeout - unofficial
+                        });
+                    };
+
                     _xhr.onloadend = function () {
                         _xhr.onload = _xhr.onloadend = _xhr.onerror = null;
                         _xhr = null;
