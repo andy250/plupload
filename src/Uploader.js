@@ -869,7 +869,7 @@ define('plupload/Uploader', [
 			}, this, 999);
 
 			this.bind('OptionChanged', function (up, name, value) {
-				up.settings[name] = typeof(value) == 'object' ? plupload.extend({}, value) : value;
+				up.settings[name] = !!value && typeof(value) == 'object' && !(value.nodeType && value.nodeType == 1) ? plupload.extend({}, value) : value;
 			}, this, 999);
 		}
 

@@ -89,9 +89,7 @@ define('plupload/FileUploader', [
 			uploadChunk: function(seq) {
 				var self = this;
 				var up;
-				var chunk;
-
-				chunk = self.chunkInfo(seq);
+				var chunk = self.chunkInfo(seq);
 
 				// do not proceed for weird chunks
 				if (chunk.start < 0 || chunk.start >= _file.size) {
@@ -109,7 +107,7 @@ define('plupload/FileUploader', [
 				chunk.uid = up.uid;
 
 				up.bind('progress', function(e) {
-					self.progress(calcProcessed() + e.loaded, _file.size);
+					self.progress(calcProcessed(), _file.size);
 				});
 
 				up.bind('failed', function(e, result) {
@@ -207,9 +205,8 @@ define('plupload/FileUploader', [
 			var processed = 0;
 
 			_chunks.each(function(item) {
-				if (item.state === Queueable.DONE) {
-					processed += (item.end - item.start);
-				}
+				var chunk = queue.getItem(item.uid);
+				processed += chunk ? (chunk.processed || 0) : 0;
 			});
 
 			return processed;
