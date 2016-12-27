@@ -8266,7 +8266,6 @@ define('plupload/FileUploader', [
 				chunk.uid = up.uid;
 
 				up.bind('progress', function(e) {
-					// self.progress(calcProcessed() + e.loaded, _file.size);
 					self.progress(calcProcessed(), _file.size);
 				});
 
@@ -8365,7 +8364,8 @@ define('plupload/FileUploader', [
 			var processed = 0;
 
 			_chunks.each(function(item) {
-				processed += queue.getItem(item.uid).processed;
+				var chunk = queue.getItem(item.uid);
+				processed += chunk ? (chunk.processed || 0) : 0;
 			});
 
 			return processed;
