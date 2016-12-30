@@ -45,7 +45,7 @@ define('plupload/QueueUpload', [
                 send_file_name: true,
                 stop_file_on_chunk_fail: true,
                 chunk_upload_url: null,
-                assumed_upload_speed: 0
+                assumed_upload_speed: null
             });
 
             this.setOption = function(option, value) {

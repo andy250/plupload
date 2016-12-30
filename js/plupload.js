@@ -5848,6 +5848,7 @@ define('plupload/core/Queueable', [
                 }
 
                 var previouslyProcessed = this.processed; 
+                this.progressTimestamp = new Date().getTime();
                 this.processed = Math.min(Math.max(previouslyProcessed, processed), this.total);
                 this.loaded = this.processed; // for backward compatibility
                 this.percent = Math.ceil(this.processed / this.total * 100);
@@ -6643,7 +6644,7 @@ define('plupload/QueueUpload', [
                 send_file_name: true,
                 stop_file_on_chunk_fail: true,
                 chunk_upload_url: null,
-                assumed_upload_speed: 0
+                assumed_upload_speed: null
             });
 
             this.setOption = function(option, value) {
@@ -7989,6 +7990,7 @@ define('plupload/ChunkUploader', [
         var _options;
         var _blob = blob;
         var _chunkInfo = chunkInfo;
+        var _progressCheck = null;
 
         Queueable.call(this);
 
@@ -8018,9 +8020,23 @@ define('plupload/ChunkUploader', [
                         _xhr.upload.onprogress = function (e) {
                             self.progress(e.loaded, e.total);
                         };
+
+                        _progressCheck = setInterval(function () {
+                            if (self.state !== Queueable.PAUSED && self.progressTimestamp) {
+                                var now = new Date().getTime();
+                                if (self.progressTimestamp + 10000 < now) {
+                                    clearInterval(_progressCheck);
+                                    self.failed({
+                                        status: 503     // service unavailable
+                                    });
+                                }
+                            }
+                        }, 1000);
                     }
 
                     _xhr.onload = function () {
+                        clearInterval(_progressCheck);
+
                         var result = {
                             response: _xhr.responseText,
                             status: _xhr.status,
@@ -8035,24 +8051,26 @@ define('plupload/ChunkUploader', [
                     };
 
                     _xhr.onerror = function () {
+                        clearInterval(_progressCheck);
                         self.failed({
                             status: 503     // service unavailable
                         });
                     };
 
                     _xhr.ontimeout = function () {
+                        clearInterval(_progressCheck);
                         self.failed({
                             status: 599      // service timeout - unofficial
                         });
                     };
 
                     _xhr.onloadend = function () {
-                        _xhr.onload = _xhr.onloadend = _xhr.onerror = null;
+                        clearInterval(_progressCheck);
+                        _xhr.onload = _xhr.onloadend = _xhr.onerror = _xhr.ontimeout = null;
                         _xhr = null;
                     };
 
                     _xhr.open(_options.http_method, url, true);
-
 
                     // headers must be set after request is already opened, otherwise INVALID_STATE_ERR exception will raise
                     if (!Basic.isEmptyObj(_options.headers)) {
@@ -8089,6 +8107,7 @@ define('plupload/ChunkUploader', [
                 ChunkUploader.prototype.stop.call(this);
 
                 if (_xhr) {
+                    clearInterval(_progressCheck);
                     _xhr.abort();
                     _xhr.onload = _xhr.onloadend = _xhr.onerror = null;
                     _xhr = null;
@@ -9849,7 +9868,7 @@ define('plupload/Uploader', [
 				backward_compatibility: true,
 				stop_file_on_chunk_fail: true,
 				chunk_upload_url: null,
-				assumed_upload_speed: 500 * 1024 // assume 500 kbytes/sec - later upload timeout is calculated based on this
+				assumed_upload_speed: null
 			},
 			options
 		);

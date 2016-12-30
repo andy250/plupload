@@ -208,6 +208,7 @@ define('plupload/core/Queueable', [
                 }
 
                 var previouslyProcessed = this.processed; 
+                this.progressTimestamp = new Date().getTime();
                 this.processed = Math.min(Math.max(previouslyProcessed, processed), this.total);
                 this.loaded = this.processed; // for backward compatibility
                 this.percent = Math.ceil(this.processed / this.total * 100);
