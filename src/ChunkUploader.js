@@ -63,7 +63,7 @@ define('plupload/ChunkUploader', [
                         _progressCheck = setInterval(function () {
                             if (self.state !== Queueable.PAUSED && self.progressTimestamp) {
                                 var now = new Date().getTime();
-                                if (self.progressTimestamp + 10000 < now) {
+                                if (self.progressTimestamp + 20000 < now) {
                                     clearInterval(_progressCheck);
                                     self.failed({
                                         status: 503     // service unavailable
