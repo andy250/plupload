@@ -148,8 +148,10 @@ define('plupload/ChunkUploader', [
                 if (_xhr) {
                     clearInterval(_progressCheck);
                     _xhr.abort();
-                    _xhr.onload = _xhr.onloadend = _xhr.onerror = null;
-                    _xhr = null;
+                    if (_xhr) {
+                        _xhr.onload = _xhr.onloadend = _xhr.onerror = null;
+                        _xhr = null;
+                    }
                 }
             },
 
