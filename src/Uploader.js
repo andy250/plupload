@@ -428,6 +428,14 @@ define('plupload/Uploader', [
 							self.trigger('Reconnected', data);
 						});
 
+						_queueUpload.bind('TooManyReconnects', function (sender, data) {
+							self.stop();
+							self.trigger('Error', {
+								code: plupload.IO_ERROR,
+								message: plupload.translate('IO Error.')
+							});
+						});
+
 						self.trigger('Init', {
 							ruid: runtime.uid,
 							runtime: self.runtime = runtime.type

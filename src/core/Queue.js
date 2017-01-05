@@ -99,6 +99,9 @@ define('plupload/core/Queue', [
             this._wait = 10000,
 
 
+                this._reconnectAttempts = 0,
+
+
                 this._waitHandle = null,
 
 
@@ -147,6 +150,8 @@ define('plupload/core/Queue', [
                 self.state = Queue.STARTED;
                 self.trigger('StateChanged', self.state, prevState);
 
+                self._wait = 10000;
+                self._reconnectAttempts = 0;
                 self._startTime = new Date();
 
                 processNext.call(self);
@@ -445,6 +450,7 @@ define('plupload/core/Queue', [
         function reconnect() {
             this._connected = true;
             this._wait = 10000;
+            this._reconnectAttempts = 0;
             if (this._reconnectHandle) {
                 window.clearTimeout(this._reconnectHandle);
                 this._reconnectHandle = null;
@@ -455,12 +461,17 @@ define('plupload/core/Queue', [
 
         function scheduleResume() {
             var self = this;
-            self._reconnectHandle = setTimeout(function () {
-                window.clearTimeout(self._reconnectHandle);
-                self._reconnectHandle = null;
-                self.resume();
-            }, self._wait);
-            self._wait = Math.min(self._wait * 2, 60 * 1000); // no longer than 1 minute
+            self._reconnectAttempts++;
+            if (self._reconnectAttempts > 1440) { // don't retry longer than ~24h
+                self.trigger('TooManyReconnects');
+            } else {
+                self._reconnectHandle = setTimeout(function () {
+                    window.clearTimeout(self._reconnectHandle);
+                    self._reconnectHandle = null;
+                    self.resume();
+                }, self._wait);
+                self._wait = Math.min(self._wait * 2, 60 * 1000); // no longer than 1 minute
+            }
         }
 
 
