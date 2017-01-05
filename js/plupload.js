@@ -8038,12 +8038,12 @@ define('plupload/ChunkUploader', [
                         clearInterval(_progressCheck);
 
                         var result = {
-                            response: _xhr.responseText,
-                            status: _xhr.status,
-                            responseHeaders: _xhr.getAllResponseHeaders()
+                            response: this.responseText,
+                            status: this.status,
+                            responseHeaders: this.getAllResponseHeaders()
                         };
 
-                        if (_xhr.status >= 400) { // assume error
+                        if (this.status >= 400) { // assume error
                             return self.failed(result);
                         }
 
@@ -8066,8 +8066,10 @@ define('plupload/ChunkUploader', [
 
                     _xhr.onloadend = function () {
                         clearInterval(_progressCheck);
-                        _xhr.onload = _xhr.onloadend = _xhr.onerror = _xhr.ontimeout = null;
-                        _xhr = null;
+                        if (_xhr) {
+                            _xhr.onload = _xhr.onloadend = _xhr.onerror = _xhr.ontimeout = null;
+                            _xhr = null;
+                        }
                     };
 
                     _xhr.open(_options.http_method, url, true);
@@ -8105,12 +8107,12 @@ define('plupload/ChunkUploader', [
 
             stop: function () {
                 ChunkUploader.prototype.stop.call(this);
+                clearInterval(_progressCheck);
 
                 if (_xhr) {
-                    clearInterval(_progressCheck);
                     _xhr.abort();
                     if (_xhr) {
-                        _xhr.onload = _xhr.onloadend = _xhr.onerror = null;
+                        _xhr.onload = _xhr.onloadend = _xhr.onerror = _xhr.ontimeout = null;
                         _xhr = null;
                     }
                 }
