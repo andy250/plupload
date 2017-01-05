@@ -2193,15 +2193,16 @@ define('moxie/core/EventTarget', [
 		@param {Mixed} [...] Variable number of arguments to be passed to a handlers
 		@return {Boolean} true by default and false if any handler returned false
 		*/
-		dispatchEvent: function(type) {
+		dispatchEvent: function(eventType) {
 			var uid, list, args, tmpEvt, evt = {}, result = true, undef;
+			var tmpEventType = eventType;
 
-			if (Basic.typeOf(type) !== 'string') {
+			if (Basic.typeOf(tmpEventType) !== 'string') {
 				// we can't use original object directly (because of Silverlight)
-				tmpEvt = type;
+				tmpEvt = tmpEventType;
 
 				if (Basic.typeOf(tmpEvt.type) === 'string') {
-					type = tmpEvt.type;
+					tmpEventType = tmpEvt.type;
 
 					if (tmpEvt.total !== undef && tmpEvt.loaded !== undef) { // progress event
 						evt.total = tmpEvt.total;
@@ -2216,18 +2217,18 @@ define('moxie/core/EventTarget', [
 			}
 
 			// check if event is meant to be dispatched on an object having specific uid
-			if (type.indexOf('::') !== -1) {
+			if (tmpEventType.indexOf('::') !== -1) {
 				(function(arr) {
 					uid = arr[0];
-					type = arr[1];
-				}(type.split('::')));
+					tmpEventType = arr[1];
+				}(tmpEventType.split('::')));
 			} else {
 				uid = this.uid;
 			}
 
-			type = type.toLowerCase();
+			tmpEventType = tmpEventType.toLowerCase();
 
-			list = eventpool[uid] && eventpool[uid][type];
+			list = eventpool[uid] && eventpool[uid][tmpEventType];
 
 			if (list) {
 				// sort event list by prority
@@ -2237,7 +2238,7 @@ define('moxie/core/EventTarget', [
 
 				// first argument will be pseudo-event object
 				args.shift();
-				evt.type = type;
+				evt.type = tmpEventType;
 				args.unshift(evt);
 
 				if (MXI_DEBUG && Env.debug.events) {
