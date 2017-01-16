@@ -4121,7 +4121,7 @@ define('moxie/file/File', [
 	@param {String} ruid Unique id of the runtime, to which this blob belongs to
 	@param {Object} file Object "Native" file object, as it is represented in the runtime
 	*/
-	function File(ruid, file) {
+	function File(ruid, file, relativePath) {
 		if (!file) { // avoid extra errors in case we overlooked something
 			file = {};
 		}
@@ -4134,7 +4134,9 @@ define('moxie/file/File', [
 
 		// sanitize file name or generate new one
 		var name;
-		if (file.name) {
+		if (relativePath) {
+			name = relativePath.replace(/\\/g, '/').replace(/^\//, '');
+		} else if (file.name) {
 			name = file.name.replace(/\\/g, '/');
 			name = name.substr(name.lastIndexOf('/') + 1);
 		} else if (this.type) {
@@ -11304,7 +11306,7 @@ define("moxie/runtime/html5/file/FileInput", [
 							relativePath = '/' + file.webkitRelativePath.replace(/^\//, '');
 						}
 						
-						file = new File(I.uid, file);
+						file = new File(I.uid, file, file.webkitRelativePath);
 						file.relativePath = relativePath;
 
 						comp.files.push(file);
@@ -11510,7 +11512,7 @@ define("moxie/runtime/html5/file/FileDrop", [
 
 		function _addFile(file, relativePath) {
 			if (_isAcceptable(file)) {
-				var fileObj = new File(_ruid, file);
+				var fileObj = new File(_ruid, file, relativePath);
 				fileObj.relativePath = relativePath || '';
 				_files.push(fileObj);
 			}
