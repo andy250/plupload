@@ -185,7 +185,7 @@ define('plupload/FileUploader', [
 					size: end - start,
 					chunks: _totalChunks, 
 					filesize: _file.size,
-					filename: _file.name
+					filename: _file.relativePath || _file.name //relativePath is '' in e.g. IE
 				};
 			},
 
