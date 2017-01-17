@@ -9584,6 +9584,15 @@ define('plupload/File', [
                     _up = null;
                 }
                 _file = null;
+            },
+
+            rename: function (newName) {
+                var oldName = _file.name;
+                _file.name = newName;
+                if (_file.relativePath) {
+                    _file.relativePath = _file.relativePath.substring(0, _file.relativePath.length - oldName.length) + newName;
+                }
+                this.name = _file.name;
             }
         });
     }
