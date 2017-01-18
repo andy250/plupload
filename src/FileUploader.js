@@ -140,7 +140,10 @@ define('plupload/FileUploader', [
 						self.done(result);
 					} else if (_chunkSize) {
 						Basic.delay(function() {
-							self.uploadChunk(getNextChunk());
+							var nc = getNextChunk();
+							if (nc < _totalChunks) {
+								self.uploadChunk(nc);
+							}
 						});
 					}
 				});
@@ -157,7 +160,10 @@ define('plupload/FileUploader', [
 
 				// enqueue even more chunks if slots available
 				if (queue.countSpareSlots()) {
-					self.uploadChunk(getNextChunk());
+					var nc = getNextChunk();
+					if (nc < _totalChunks) {
+						self.uploadChunk(nc);
+					}
 				}
 
 				return true;
@@ -171,12 +177,8 @@ define('plupload/FileUploader', [
 			},
 
 			chunkInfo: function (seq) {
-				var start;
-				var end;
-
-				seq = parseInt(seq, 10) || getNextChunk();
-				start = seq * _chunkSize;
-				end = Math.min(start + _chunkSize, _file.size);
+				var start = seq * _chunkSize;
+				var end = Math.min(start + _chunkSize, _file.size);
 				
 				return {
 					seq: seq,

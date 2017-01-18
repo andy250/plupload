@@ -6146,19 +6146,19 @@ define('plupload/core/Queue', [
             this._wait = 10000,
 
 
-                this._reconnectAttempts = 0,
+            this._reconnectAttempts = 0,
 
 
-                this._waitHandle = null,
+            this._waitHandle = null,
 
 
-                this._options = Basic.extend({
-                    max_slots: 1,
-                    max_retries: 0,
-                    auto_start: false,
-                    finish_active: false,
-                    pause_before_start: true
-                }, options);
+            this._options = Basic.extend({
+                max_slots: 1,
+                max_retries: 0,
+                auto_start: false,
+                finish_active: false,
+                pause_before_start: true
+            }, options);
         }
 
 
@@ -6336,12 +6336,15 @@ define('plupload/core/Queue', [
                     processNext.call(self);
                 }, 0, this);
 
-                this._queue.add(item.uid, item);
-                calcStats.call(this);
+                self._queue.add(item.uid, item);
+                calcStats.call(self);
                 item.trigger('Queued');
 
-                if (self.getOption('auto_start') && this.state !== Queue.PAUSED) {
-                    this.start();
+                if (self.getOption('auto_start') && self.state !== Queue.PAUSED) {
+                    var started = self.start();
+                    if (!started) {
+                        processNext.call(self);
+                    }
                 }
             },
 
@@ -8337,7 +8340,10 @@ define('plupload/FileUploader', [
 						self.done(result);
 					} else if (_chunkSize) {
 						Basic.delay(function() {
-							self.uploadChunk(getNextChunk());
+							var nc = getNextChunk();
+							if (nc < _totalChunks) {
+								self.uploadChunk(nc);
+							}
 						});
 					}
 				});
@@ -8354,7 +8360,10 @@ define('plupload/FileUploader', [
 
 				// enqueue even more chunks if slots available
 				if (queue.countSpareSlots()) {
-					self.uploadChunk(getNextChunk());
+					var nc = getNextChunk();
+					if (nc < _totalChunks) {
+						self.uploadChunk(nc);
+					}
 				}
 
 				return true;
@@ -8368,12 +8377,8 @@ define('plupload/FileUploader', [
 			},
 
 			chunkInfo: function (seq) {
-				var start;
-				var end;
-
-				seq = parseInt(seq, 10) || getNextChunk();
-				start = seq * _chunkSize;
-				end = Math.min(start + _chunkSize, _file.size);
+				var start = seq * _chunkSize;
+				var end = Math.min(start + _chunkSize, _file.size);
 				
 				return {
 					seq: seq,
