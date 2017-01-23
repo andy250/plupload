@@ -2036,7 +2036,7 @@ define('moxie/core/EventTarget', [
 	'moxie/core/utils/Env',
 	'moxie/core/Exceptions',
 	'moxie/core/utils/Basic'
-], function(Env, x, Basic) {
+], function (Env, x, Basic) {
 
 	// hash of event listeners by object uid
 	var eventpool = {};
@@ -2065,7 +2065,7 @@ define('moxie/core/EventTarget', [
 
 		@method init
 		*/
-		init: function() {
+		init: function () {
 			if (!this.uid) {
 				this.uid = Basic.guid('uid_');
 			}
@@ -2080,7 +2080,7 @@ define('moxie/core/EventTarget', [
 		@param {Number} [priority=0] Priority of the event handler - handlers with higher priorities will be called first
 		@param {Object} [scope=this] A scope to invoke event handler in
 		*/
-		addEventListener: function(type, fn, priority, scope) {
+		addEventListener: function (type, fn, priority, scope) {
 			var self = this, list;
 
 			// without uid no event handlers can be added, so make sure we got one
@@ -2092,7 +2092,7 @@ define('moxie/core/EventTarget', [
 
 			if (/\s/.test(type)) {
 				// multiple event types were passed for one handler
-				Basic.each(type.split(/\s+/), function(type) {
+				Basic.each(type.split(/\s+/), function (type) {
 					self.addEventListener(type, fn, priority, scope);
 				});
 				return;
@@ -2102,7 +2102,7 @@ define('moxie/core/EventTarget', [
 			priority = parseInt(priority, 10) || 0;
 
 			list = eventpool[this.uid] && eventpool[this.uid][type] || [];
-			list.push({fn : fn, priority : priority, scope : scope || this});
+			list.push({ fn: fn, priority: priority, scope: scope || this });
 
 			if (!eventpool[this.uid]) {
 				eventpool[this.uid] = {};
@@ -2117,7 +2117,7 @@ define('moxie/core/EventTarget', [
 		@param {String} [type] Type or basically a name of the event to check
 		@return {Mixed} Returns a handler if it was found and false, if - not
 		*/
-		hasEventListener: function(type) {
+		hasEventListener: function (type) {
 			var list;
 			if (type) {
 				type = type.toLowerCase();
@@ -2135,14 +2135,14 @@ define('moxie/core/EventTarget', [
 		@param {String} type Type or basically a name of the event
 		@param {Function} [fn] Handler to unregister
 		*/
-		removeEventListener: function(type, fn) {
+		removeEventListener: function (type, fn) {
 			var self = this, list, i;
 
 			type = type.toLowerCase();
 
 			if (/\s/.test(type)) {
 				// multiple event types were passed for one handler
-				Basic.each(type.split(/\s+/), function(type) {
+				Basic.each(type.split(/\s+/), function (type) {
 					self.removeEventListener(type, fn);
 				});
 				return;
@@ -2179,10 +2179,24 @@ define('moxie/core/EventTarget', [
 
 		@method removeAllEventListeners
 		*/
-		removeAllEventListeners: function() {
+		removeAllEventListeners: function () {
 			if (eventpool[this.uid]) {
 				delete eventpool[this.uid];
 			}
+		},
+
+		constructEventObject: function (sourceEvent) {
+			var eObject = {};
+			if (sourceEvent) {
+				if (sourceEvent.total && sourceEvent.loaded) { // progress event
+					eObject.total = sourceEvent.total;
+					eObject.loaded = sourceEvent.loaded;
+					eObject.delta = sourceEvent.delta || 0;
+					eObject.failedBytes = sourceEvent.failedBytes || 0;
+				}
+				eObject.async = sourceEvent.async || false;
+			}
+			return eObject;
 		},
 
 		/**
@@ -2193,53 +2207,54 @@ define('moxie/core/EventTarget', [
 		@param {Mixed} [...] Variable number of arguments to be passed to a handlers
 		@return {Boolean} true by default and false if any handler returned false
 		*/
-		dispatchEvent: function(eventType) {
-			var uid, list, args, tmpEvt, evt = {}, result = true, undef;
-			
-			var tmpEventType = eventType;
+		dispatchEvent: function (eventType) {
+			var uid,
+				list,
+				args,
+				tmpEvt,
+				evt = null,
+				result = true,
+				localEventName = eventType,
+				undef;
 
-			if (Basic.typeOf(tmpEventType) !== 'string') {
+			if (Basic.typeOf(localEventName) !== 'string') {
 				// we can't use original object directly (because of Silverlight)
-				tmpEvt = tmpEventType;
-
+				tmpEvt = localEventName;
 				if (Basic.typeOf(tmpEvt.type) === 'string') {
-					tmpEventType = tmpEvt.type;
-
-					if (tmpEvt.total !== undef && tmpEvt.loaded !== undef) { // progress event
-						evt.total = tmpEvt.total;
-						evt.loaded = tmpEvt.loaded;
-						evt.delta = tmpEvt.delta || 0;
-						evt.failedBytes = tmpEvt.failedBytes || 0;
-					}
-					evt.async = tmpEvt.async || false;
+					localEventName = tmpEvt.type;
+					evt = this.constructEventObject(tmpEvt);
 				} else {
 					throw new x.EventException(x.EventException.UNSPECIFIED_EVENT_TYPE_ERR);
 				}
 			}
 
+			// localEventName is converted to string
+
 			// check if event is meant to be dispatched on an object having specific uid
-			if (tmpEventType.indexOf('::') !== -1) {
-				(function(arr) {
+			if (localEventName.indexOf('::') !== -1) {
+				(function (arr) {
 					uid = arr[0];
-					tmpEventType = arr[1];
-				}(tmpEventType.split('::')));
+					localEventName = arr[1];
+				} (localEventName.split('::')));
 			} else {
 				uid = this.uid;
 			}
 
-			tmpEventType = tmpEventType.toLowerCase();
-
-			list = eventpool[uid] && eventpool[uid][tmpEventType];
+			localEventName = localEventName.toLowerCase();
+			list = eventpool[uid] && eventpool[uid][localEventName];
 
 			if (list) {
 				// sort event list by prority
-				list.sort(function(a, b) { return b.priority - a.priority; });
+				list.sort(function (a, b) { return b.priority - a.priority; });
 
 				args = [].slice.call(arguments);
 
 				// first argument will be pseudo-event object
 				args.shift();
-				evt.type = tmpEventType;
+				if (!evt) {
+					evt = this.constructEventObject(tmpEvt);
+				}
+				evt.type = localEventName;
 				args.unshift(evt);
 
 				if (MXI_DEBUG && Env.debug.events) {
@@ -2248,24 +2263,24 @@ define('moxie/core/EventTarget', [
 
 				// Dispatch event to all listeners
 				var queue = [];
-				Basic.each(list, function(handler) {
+				Basic.each(list, function (handler) {
 					// explicitly set the target, otherwise events fired from shims do not get it
 					args[0].target = handler.scope;
 					// if event is marked as async, detach the handler
 					if (evt.async) {
-						queue.push(function(cb) {
-							setTimeout(function() {
+						queue.push(function (cb) {
+							setTimeout(function () {
 								cb(handler.fn.apply(handler.scope, args) === false);
 							}, 1);
 						});
 					} else {
-						queue.push(function(cb) {
+						queue.push(function (cb) {
 							cb(handler.fn.apply(handler.scope, args) === false); // if handler returns false stop propagation
 						});
 					}
 				});
 				if (queue.length) {
-					Basic.inSeries(queue, function(err) {
+					Basic.inSeries(queue, function (err) {
 						result = !err;
 					});
 				}
@@ -2283,7 +2298,7 @@ define('moxie/core/EventTarget', [
 		@param {Number} [priority=0] Priority of the event handler - handlers with higher priorities will be called first
 		@param {Object} [scope=this] A scope to invoke event handler in
 		*/
-		bindOnce: function(type, fn, priority, scope) {
+		bindOnce: function (type, fn, priority, scope) {
 			var self = this;
 			self.bind.call(this, type, function cb() {
 				self.unbind(type, cb);
@@ -2297,7 +2312,7 @@ define('moxie/core/EventTarget', [
 		@method bind
 		@protected
 		*/
-		bind: function() {
+		bind: function () {
 			this.addEventListener.apply(this, arguments);
 		},
 
@@ -2307,7 +2322,7 @@ define('moxie/core/EventTarget', [
 		@method unbind
 		@protected
 		*/
-		unbind: function() {
+		unbind: function () {
 			this.removeEventListener.apply(this, arguments);
 		},
 
@@ -2317,7 +2332,7 @@ define('moxie/core/EventTarget', [
 		@method unbindAll
 		@protected
 		*/
-		unbindAll: function() {
+		unbindAll: function () {
 			this.removeAllEventListeners.apply(this, arguments);
 		},
 
@@ -2327,7 +2342,7 @@ define('moxie/core/EventTarget', [
 		@method trigger
 		@protected
 		*/
-		trigger: function() {
+		trigger: function () {
 			return this.dispatchEvent.apply(this, arguments);
 		},
 
@@ -2338,10 +2353,10 @@ define('moxie/core/EventTarget', [
 		@method handleEventProps
 		@private
 		*/
-		handleEventProps: function(dispatches) {
+		handleEventProps: function (dispatches) {
 			var self = this;
 
-			this.bind(dispatches.join(' '), function(e) {
+			this.bind(dispatches.join(' '), function (e) {
 				var prop = 'on' + e.type.toLowerCase();
 				if (Basic.typeOf(this[prop]) === 'function') {
 					this[prop].apply(this, arguments);
@@ -2349,7 +2364,7 @@ define('moxie/core/EventTarget', [
 			});
 
 			// object must have defined event properties, even if it doesn't make use of them
-			Basic.each(dispatches, function(prop) {
+			Basic.each(dispatches, function (prop) {
 				prop = 'on' + prop.toLowerCase(prop);
 				if (Basic.typeOf(self[prop]) === 'undefined') {
 					self[prop] = null;
