@@ -96,7 +96,8 @@ define('plupload/core/Queue', [
             this._connected = true;
 
 
-            this._wait = 10000,
+            this._wait = 5000, // millisecond - initial wait between retry to reconnect
+            this._maxWait = 16000, // millisecond - max wait between retry to reconnect
 
 
             this._reconnectAttempts = 0,
@@ -150,7 +151,7 @@ define('plupload/core/Queue', [
                 self.state = Queue.STARTED;
                 self.trigger('StateChanged', self.state, prevState);
 
-                self._wait = 10000;
+                self._wait = 5000;
                 self._reconnectAttempts = 0;
                 self._startTime = new Date();
 
@@ -452,7 +453,7 @@ define('plupload/core/Queue', [
 
         function reconnect() {
             this._connected = true;
-            this._wait = 10000;
+            this._wait = 5000;
             this._reconnectAttempts = 0;
             if (this._reconnectHandle) {
                 window.clearTimeout(this._reconnectHandle);
@@ -465,7 +466,7 @@ define('plupload/core/Queue', [
         function scheduleResume() {
             var self = this;
             self._reconnectAttempts++;
-            if (self._reconnectAttempts > 1440) { // don't retry longer than ~24h
+            if (self._reconnectAttempts > (24 * 60 * 60 * 1000 / self._maxWait)) { // don't retry longer than ~24h
                 self.trigger('TooManyReconnects');
             } else {
                 self._reconnectHandle = setTimeout(function () {
@@ -473,7 +474,7 @@ define('plupload/core/Queue', [
                     self._reconnectHandle = null;
                     self.resume();
                 }, self._wait);
-                self._wait = Math.min(self._wait * 2, 60 * 1000); // no longer than 1 minute
+                self._wait = Math.min(self._wait * 2, self._maxWait); // wait no longer than _maxWait milliseconds
             }
         }
 
