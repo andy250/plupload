@@ -132,7 +132,8 @@ define('plupload/FileUploader', [
 
 				up.bind('done', function(e, result) {
 					_chunks.add(chunk.seq, Basic.extend({
-						state: Queueable.DONE
+						state: Queueable.DONE,
+						fschunk: result.fschunk
 					}, chunk));
 
 					if (calcProcessed() >= _file.size) {

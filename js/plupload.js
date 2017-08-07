@@ -8074,10 +8074,20 @@ define('plupload/ChunkUploader', [
                         var result = {
                             response: this.responseText,
                             status: this.status,
-                            responseHeaders: this.getAllResponseHeaders()
+                            responseHeaders: this.getAllResponseHeaders(),
+                            fschunk: this.getResponseHeader('X-Fm-Chunk')
                         };
 
                         if (this.status >= 400) { // assume error
+                            return self.failed(result);
+                        }
+
+                        try {
+                            var fschunk = parseInt((this.getResponseHeader('X-Fm-Chunk') || '').replace('X-Fm-Chunk: ', ''), 0);
+                            if (_chunkInfo.seq !== fschunk) {
+                                return self.failed(result);    
+                            }
+                        } catch (err) {
                             return self.failed(result);
                         }
 
@@ -8348,7 +8358,8 @@ define('plupload/FileUploader', [
 
 				up.bind('done', function(e, result) {
 					_chunks.add(chunk.seq, Basic.extend({
-						state: Queueable.DONE
+						state: Queueable.DONE,
+						fschunk: result.fschunk
 					}, chunk));
 
 					if (calcProcessed() >= _file.size) {
