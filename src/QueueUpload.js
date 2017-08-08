@@ -45,6 +45,7 @@ define('plupload/QueueUpload', [
                 send_file_name: true,
                 stop_file_on_chunk_fail: true,
                 chunk_upload_url: null,
+                chunk_header_validate: false,
                 assumed_upload_speed: null
             });
 

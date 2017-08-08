@@ -2036,7 +2036,7 @@ define('moxie/core/EventTarget', [
 	'moxie/core/utils/Env',
 	'moxie/core/Exceptions',
 	'moxie/core/utils/Basic'
-], function (Env, x, Basic) {
+], function(Env, x, Basic) {
 
 	// hash of event listeners by object uid
 	var eventpool = {};
@@ -2065,7 +2065,7 @@ define('moxie/core/EventTarget', [
 
 		@method init
 		*/
-		init: function () {
+		init: function() {
 			if (!this.uid) {
 				this.uid = Basic.guid('uid_');
 			}
@@ -2080,7 +2080,7 @@ define('moxie/core/EventTarget', [
 		@param {Number} [priority=0] Priority of the event handler - handlers with higher priorities will be called first
 		@param {Object} [scope=this] A scope to invoke event handler in
 		*/
-		addEventListener: function (type, fn, priority, scope) {
+		addEventListener: function(type, fn, priority, scope) {
 			var self = this, list;
 
 			// without uid no event handlers can be added, so make sure we got one
@@ -2092,7 +2092,7 @@ define('moxie/core/EventTarget', [
 
 			if (/\s/.test(type)) {
 				// multiple event types were passed for one handler
-				Basic.each(type.split(/\s+/), function (type) {
+				Basic.each(type.split(/\s+/), function(type) {
 					self.addEventListener(type, fn, priority, scope);
 				});
 				return;
@@ -2102,7 +2102,7 @@ define('moxie/core/EventTarget', [
 			priority = parseInt(priority, 10) || 0;
 
 			list = eventpool[this.uid] && eventpool[this.uid][type] || [];
-			list.push({ fn: fn, priority: priority, scope: scope || this });
+			list.push({fn : fn, priority : priority, scope : scope || this});
 
 			if (!eventpool[this.uid]) {
 				eventpool[this.uid] = {};
@@ -2117,7 +2117,7 @@ define('moxie/core/EventTarget', [
 		@param {String} [type] Type or basically a name of the event to check
 		@return {Mixed} Returns a handler if it was found and false, if - not
 		*/
-		hasEventListener: function (type) {
+		hasEventListener: function(type) {
 			var list;
 			if (type) {
 				type = type.toLowerCase();
@@ -2135,14 +2135,14 @@ define('moxie/core/EventTarget', [
 		@param {String} type Type or basically a name of the event
 		@param {Function} [fn] Handler to unregister
 		*/
-		removeEventListener: function (type, fn) {
+		removeEventListener: function(type, fn) {
 			var self = this, list, i;
 
 			type = type.toLowerCase();
 
 			if (/\s/.test(type)) {
 				// multiple event types were passed for one handler
-				Basic.each(type.split(/\s+/), function (type) {
+				Basic.each(type.split(/\s+/), function(type) {
 					self.removeEventListener(type, fn);
 				});
 				return;
@@ -2179,7 +2179,7 @@ define('moxie/core/EventTarget', [
 
 		@method removeAllEventListeners
 		*/
-		removeAllEventListeners: function () {
+		removeAllEventListeners: function() {
 			if (eventpool[this.uid]) {
 				delete eventpool[this.uid];
 			}
@@ -2198,6 +2198,7 @@ define('moxie/core/EventTarget', [
 			}
 			return eObject;
 		},
+
 
 		/**
 		Dispatch the event
@@ -2235,7 +2236,7 @@ define('moxie/core/EventTarget', [
 				(function (arr) {
 					uid = arr[0];
 					localEventName = arr[1];
-				} (localEventName.split('::')));
+				}(localEventName.split('::')));
 			} else {
 				uid = this.uid;
 			}
@@ -2298,7 +2299,7 @@ define('moxie/core/EventTarget', [
 		@param {Number} [priority=0] Priority of the event handler - handlers with higher priorities will be called first
 		@param {Object} [scope=this] A scope to invoke event handler in
 		*/
-		bindOnce: function (type, fn, priority, scope) {
+		bindOnce: function(type, fn, priority, scope) {
 			var self = this;
 			self.bind.call(this, type, function cb() {
 				self.unbind(type, cb);
@@ -2312,7 +2313,7 @@ define('moxie/core/EventTarget', [
 		@method bind
 		@protected
 		*/
-		bind: function () {
+		bind: function() {
 			this.addEventListener.apply(this, arguments);
 		},
 
@@ -2322,7 +2323,7 @@ define('moxie/core/EventTarget', [
 		@method unbind
 		@protected
 		*/
-		unbind: function () {
+		unbind: function() {
 			this.removeEventListener.apply(this, arguments);
 		},
 
@@ -2332,7 +2333,7 @@ define('moxie/core/EventTarget', [
 		@method unbindAll
 		@protected
 		*/
-		unbindAll: function () {
+		unbindAll: function() {
 			this.removeAllEventListeners.apply(this, arguments);
 		},
 
@@ -2342,7 +2343,7 @@ define('moxie/core/EventTarget', [
 		@method trigger
 		@protected
 		*/
-		trigger: function () {
+		trigger: function() {
 			return this.dispatchEvent.apply(this, arguments);
 		},
 
@@ -2353,10 +2354,10 @@ define('moxie/core/EventTarget', [
 		@method handleEventProps
 		@private
 		*/
-		handleEventProps: function (dispatches) {
+		handleEventProps: function(dispatches) {
 			var self = this;
 
-			this.bind(dispatches.join(' '), function (e) {
+			this.bind(dispatches.join(' '), function(e) {
 				var prop = 'on' + e.type.toLowerCase();
 				if (Basic.typeOf(this[prop]) === 'function') {
 					this[prop].apply(this, arguments);
@@ -2364,7 +2365,7 @@ define('moxie/core/EventTarget', [
 			});
 
 			// object must have defined event properties, even if it doesn't make use of them
-			Basic.each(dispatches, function (prop) {
+			Basic.each(dispatches, function(prop) {
 				prop = 'on' + prop.toLowerCase(prop);
 				if (Basic.typeOf(self[prop]) === 'undefined') {
 					self[prop] = null;
@@ -4157,7 +4158,7 @@ define('moxie/file/File', [
 		} else if (this.type) {
 			var prefix = this.type.split('/')[0];
 			name = Basic.guid((prefix !== '' ? prefix : 'file') + '_');
-			
+
 			if (Mime.extensions[this.type]) {
 				name += '.' + Mime.extensions[this.type][0]; // append proper extension if possible
 			}
@@ -7909,7 +7910,7 @@ define("moxie/xhr/XMLHttpRequest", [
 					loadEnd();
 				});
 
-				_xhr.bind('Timeout', function(e) {
+				_xhr.bind('Timeout', function (e) {
 					_error_flag = true;
 					_p('readyState', XMLHttpRequest.DONE);
 					self.dispatchEvent('readystatechange');
@@ -8074,21 +8075,23 @@ define('plupload/ChunkUploader', [
                         var result = {
                             response: this.responseText,
                             status: this.status,
-                            responseHeaders: this.getAllResponseHeaders(),
-                            fschunk: this.getResponseHeader('X-Fm-Chunk')
+                            responseHeaders: this.getAllResponseHeaders()
                         };
 
                         if (this.status >= 400) { // assume error
                             return self.failed(result);
                         }
 
-                        try {
-                            var fschunk = parseInt((this.getResponseHeader('X-Fm-Chunk') || '').replace('X-Fm-Chunk: ', ''), 0);
-                            if (_chunkInfo.seq !== fschunk) {
-                                return self.failed(result);    
+                        if (_options.chunk_header_validate) {
+                            try {
+                                var fschunk = parseInt((this.getResponseHeader(_options.chunk_header_validate) || '').replace(_options.chunk_header_validate + ': ', ''), 0);
+                                if (_chunkInfo.seq !== fschunk) {
+                                    result.invalidchunk = fschunk + '/' + _chunkInfo.seq
+                                    return self.failed(result);    
+                                }
+                            } catch (err) {
+                                return self.failed(result);
                             }
-                        } catch (err) {
-                            return self.failed(result);
                         }
 
                         self.done(result);
@@ -8358,8 +8361,7 @@ define('plupload/FileUploader', [
 
 				up.bind('done', function(e, result) {
 					_chunks.add(chunk.seq, Basic.extend({
-						state: Queueable.DONE,
-						fschunk: result.fschunk
+						state: Queueable.DONE
 					}, chunk));
 
 					if (calcProcessed() >= _file.size) {
@@ -9920,6 +9922,7 @@ define('plupload/Uploader', [
 				http_method: 'POST',
 				file_data_name: 'file',
 				chunk_size: 0,
+				chunk_header_validate: false,
 				send_file_name: true,
 				send_chunk_number: true, // whether to send chunks and chunk numbers, instead of total and offset bytes
 				max_retries: 0,
@@ -11842,7 +11845,7 @@ define("moxie/runtime/html5/xhr/XMLHttpRequest", [
 					});
 
 					if ('timeout' in _xhr && meta.timeout) {
-						_xhr.addEventListener('timeout', function(e) {
+						_xhr.addEventListener('timeout', function (e) {
 							target.trigger(e);
 						});
 					}
@@ -11854,7 +11857,6 @@ define("moxie/runtime/html5/xhr/XMLHttpRequest", [
 							total: e.total
 						});
 					});
-
 				// ... otherwise simulate XHR L2
 				} else {
 					_xhr.onreadystatechange = function onReadyStateChange() {

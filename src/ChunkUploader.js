@@ -79,21 +79,23 @@ define('plupload/ChunkUploader', [
                         var result = {
                             response: this.responseText,
                             status: this.status,
-                            responseHeaders: this.getAllResponseHeaders(),
-                            fschunk: this.getResponseHeader('X-Fm-Chunk')
+                            responseHeaders: this.getAllResponseHeaders()
                         };
 
                         if (this.status >= 400) { // assume error
                             return self.failed(result);
                         }
 
-                        try {
-                            var fschunk = parseInt((this.getResponseHeader('X-Fm-Chunk') || '').replace('X-Fm-Chunk: ', ''), 0);
-                            if (_chunkInfo.seq !== fschunk) {
-                                return self.failed(result);    
+                        if (_options.chunk_header_validate) {
+                            try {
+                                var fschunk = parseInt((this.getResponseHeader(_options.chunk_header_validate) || '').replace(_options.chunk_header_validate + ': ', ''), 0);
+                                if (_chunkInfo.seq !== fschunk) {
+                                    result.invalidchunk = fschunk + '/' + _chunkInfo.seq
+                                    return self.failed(result);    
+                                }
+                            } catch (err) {
+                                return self.failed(result);
                             }
-                        } catch (err) {
-                            return self.failed(result);
                         }
 
                         self.done(result);
