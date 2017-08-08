@@ -88,9 +88,9 @@ define('plupload/ChunkUploader', [
 
                         if (_options.chunk_header_validate) {
                             try {
-                                var fschunk = parseInt((this.getResponseHeader(_options.chunk_header_validate) || '').replace(_options.chunk_header_validate + ': ', ''), 0);
+                                var fschunk = parseInt((this.getResponseHeader(_options.chunk_header_validate) || '').replace(_options.chunk_header_validate + ': ', ''), 10);
                                 if (_chunkInfo.seq !== fschunk) {
-                                    result.invalidchunk = fschunk + '/' + _chunkInfo.seq
+                                    result.invalidchunk = fschunk + '/' + _chunkInfo.seq;
                                     return self.failed(result);    
                                 }
                             } catch (err) {
