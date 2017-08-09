@@ -8085,7 +8085,9 @@ define('plupload/ChunkUploader', [
 
                         if (_options.chunk_header_validate) {
                             try {
-                                var fschunk = parseInt((this.getResponseHeader(_options.chunk_header_validate) || '').replace(_options.chunk_header_validate + ': ', ''), 10);
+                                var h = this.getResponseHeader(_options.chunk_header_validate);
+                                var hv = (h || '').split(':')[1].trim();
+                                var fschunk = parseInt(hv, 10);
                                 if (_chunkInfo.seq !== fschunk) {
                                     result.invalidchunk = fschunk + '/' + _chunkInfo.seq;
                                     return self.failed(result);    
