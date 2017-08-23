@@ -135,7 +135,8 @@ define('plupload/FileUploader', [
 						state: Queueable.DONE
 					}, chunk));
 
-					if (calcProcessed() >= _file.size) {
+					// if (calcProcessed() >= _file.size) {
+					if (getDoneCount() >= _totalChunks) {
 						self.progress(_file.size, _file.size);
 						self.done(result);
 					} else if (_chunkSize) {
@@ -212,6 +213,19 @@ define('plupload/FileUploader', [
 			});
 
 			return processed;
+		}
+
+
+		function getDoneCount() {
+			var done = 0;
+
+			_chunks.each(function(item) {
+				if (item.state === Queueable.DONE) {
+					done++;
+				}
+			});
+
+			return done;
 		}
 
 
