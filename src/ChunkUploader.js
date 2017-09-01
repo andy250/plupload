@@ -77,6 +77,7 @@ define('plupload/ChunkUploader', [
                         clearInterval(_progressCheck);
 
                         var result = {
+                            req: url,
                             response: this.responseText,
                             status: this.status,
                             responseHeaders: this.getAllResponseHeaders()
@@ -194,9 +195,17 @@ define('plupload/ChunkUploader', [
                 }
             },
 
+            failed: function (result) {
+                ChunkUploader.prototype.failed.call(this, result);
+            },
+
             continueProcessing: function () {
                 this.stop();
                 ChunkUploader.prototype.continueProcessing.call(this);
+            },
+
+            setBlob: function (blob) {
+                _blob = blob;
             }
         });
 

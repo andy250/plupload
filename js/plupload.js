@@ -8074,6 +8074,7 @@ define('plupload/ChunkUploader', [
                         clearInterval(_progressCheck);
 
                         var result = {
+                            req: url,
                             response: this.responseText,
                             status: this.status,
                             responseHeaders: this.getAllResponseHeaders()
@@ -8191,9 +8192,17 @@ define('plupload/ChunkUploader', [
                 }
             },
 
+            failed: function (result) {
+                ChunkUploader.prototype.failed.call(this, result);
+            },
+
             continueProcessing: function () {
                 this.stop();
                 ChunkUploader.prototype.continueProcessing.call(this);
+            },
+
+            setBlob: function (blob) {
+                _blob = blob;
             }
         });
 
@@ -8349,6 +8358,9 @@ define('plupload/FileUploader', [
 
 					if (this.getOption('stop_file_on_chunk_fail')) {
 						self.failed(result);
+					} else {
+						// re-read the file chunk?..
+						up.setBlob(_file.slice(chunk.start, chunk.end, _file.type));
 					}
 				});
 

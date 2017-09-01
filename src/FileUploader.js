@@ -117,6 +117,9 @@ define('plupload/FileUploader', [
 
 					if (this.getOption('stop_file_on_chunk_fail')) {
 						self.failed(result);
+					} else {
+						// re-read the file chunk?..
+						up.setBlob(_file.slice(chunk.start, chunk.end, _file.type));
 					}
 				});
 
