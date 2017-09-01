@@ -266,6 +266,7 @@ define('plupload/Uploader', [
 				file_data_name: 'file',
 				chunk_size: 0,
 				chunk_header_validate: false,
+				server_log: null,
 				send_file_name: true,
 				send_chunk_number: true, // whether to send chunks and chunk numbers, instead of total and offset bytes
 				max_retries: 0,

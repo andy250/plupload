@@ -124,7 +124,7 @@ define('plupload/FileUploader', [
 				});
 
 				up.bind('aborted', function(e, result) {
-					if (Basic.inArray(result.status, [503, 599]) > -1) {
+					if (Basic.inArray(result.status, [503, 520, 599]) > -1) {
 						// server unavialable
 						this.serverDisconnected();
 					} else {
@@ -139,6 +139,7 @@ define('plupload/FileUploader', [
 					}, chunk));
 
 					// if (calcProcessed() >= _file.size) {
+					// TODO: log why this gets done even when not all chunks are sent!!!
 					if (getDoneCount() >= _totalChunks) {
 						self.progress(_file.size, _file.size);
 						self.done(result);

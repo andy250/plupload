@@ -66,7 +66,9 @@ define('plupload/ChunkUploader', [
                                 if (self.progressTimestamp + 20000 < now) {
                                     clearInterval(_progressCheck);
                                     self.failed({
-                                        status: 503     // service unavailable
+                                        req: url,
+                                        response: 'Progress check freeze: ' + (now - self.progressTimestamp).toString(),
+                                        status: 503     // service unavailable - will cause "server disconnected"
                                     });
                                 }
                             }
@@ -88,15 +90,17 @@ define('plupload/ChunkUploader', [
                         }
 
                         if (_options.chunk_header_validate) {
+                            var h = null;
                             try {
-                                var h = this.getResponseHeader(_options.chunk_header_validate);
+                                h = this.getResponseHeader(_options.chunk_header_validate);
                                 var hv = (h || '').split(':')[1].trim();
                                 var fschunk = parseInt(hv, 10);
                                 if (_chunkInfo.seq !== fschunk) {
-                                    result.invalidchunk = fschunk + '/' + _chunkInfo.seq;
+                                    result.invalidchunk = 'Expected:' + _chunkInfo.seq + '; Recevied:' + fschunk;
                                     return self.failed(result);    
                                 }
                             } catch (err) {
+                                result.invalidchunk = 'Could not parse ' + _options.chunk_header_validate + '=' + h;
                                 return self.failed(result);
                             }
                         }
@@ -107,14 +111,18 @@ define('plupload/ChunkUploader', [
                     _xhr.onerror = function () {
                         clearInterval(_progressCheck);
                         self.failed({
-                            status: 503     // service unavailable
+                            req: url,
+                            response: this.responseText,
+                            errstatus: this.status,
+                            status: 520      // unknown error - will cause "server disconnected"
                         });
                     };
 
                     _xhr.ontimeout = function () {
                         clearInterval(_progressCheck);
                         self.failed({
-                            status: 599      // service timeout - unofficial
+                            req: url,
+                            status: 599      // service timeout - unofficial - will cause "server disconnected"
                         });
                     };
 
@@ -196,6 +204,18 @@ define('plupload/ChunkUploader', [
             },
 
             failed: function (result) {
+                try {
+                    if (typeof _options.server_log === 'function') {
+                        _options.server_log('ChunkUploader error: ' + JSON.stringify(_chunkInfo) +
+                        '\nXHR result  : ' + JSON.stringify(result) +
+                        '\nBlob length : ' + _blob.size +
+                        '\nBlob ruid   : ' + _blob.ruid +
+                        '\nBlob uid    : ' + _blob.uid +
+                        '\n================', 'ERROR')
+                    }
+                } catch (err) {
+                }
+
                 ChunkUploader.prototype.failed.call(this, result);
             },
 
