@@ -49,8 +49,22 @@ define('plupload/ChunkUploader', [
 
                 ChunkUploader.prototype.start.call(this);
 
+                if (_progressCheck) {
+                    clearInterval(_progressCheck);
+                }
+
                 self.getChunkUploadUrl(function (url) {
+
+                    if (_blob.size === 0) {
+                        return self.failed({
+                            req: url,
+                            response: 'File is gone: ' + _chunkInfo.filename,
+                            status: 410     // file is "gone" - probably removed or renamed - will retry couple of times and fail the whole file eventually
+                        });
+                    }
+
                     _xhr = new XMLHttpRequest();
+
                     if (_options.chunk_size && _options.assumed_upload_speed) {
                         _xhr.timeout = Math.floor(1000 * (_options.chunk_size / _options.assumed_upload_speed)); // round to milliseconds
                     }
@@ -65,6 +79,7 @@ define('plupload/ChunkUploader', [
                                 var now = new Date().getTime();
                                 if (self.progressTimestamp + 20000 < now) {
                                     clearInterval(_progressCheck);
+                                    self.stop();
                                     self.failed({
                                         req: url,
                                         response: 'Progress check freeze: ' + (now - self.progressTimestamp).toString(),
@@ -85,7 +100,8 @@ define('plupload/ChunkUploader', [
                             responseHeaders: this.getAllResponseHeaders()
                         };
 
-                        if (this.status >= 400) { // assume error
+                        if (this.status !== 200) { // assume error - anything other than 200 OK !! testing !!
+                            result.preventok = true;
                             return self.failed(result);
                         }
 
@@ -143,7 +159,6 @@ define('plupload/ChunkUploader', [
                         });
                     }
 
-
                     if (_options.multipart) {
                         formData = new FormData();
 
@@ -159,6 +174,13 @@ define('plupload/ChunkUploader', [
                     } else { // if no multipart, send as binary stream
                         if (Basic.isEmptyObj(_options.headers) || !_options.headers['content-type']) {
                             _xhr.setRequestHeader('content-type', 'application/octet-stream'); // binary stream header
+                        }
+
+                        try {
+                            if (typeof _options.server_log === 'function' && _blob.size === 0) {
+                                _options.server_log('Empty blob before sending! ' + JSON.stringify(_chunkInfo) + '\n================', 'ERROR');
+                            }
+                        } catch (err) {
                         }
 
                         _xhr.send(_blob);
@@ -205,7 +227,7 @@ define('plupload/ChunkUploader', [
 
             failed: function (result) {
                 try {
-                    if (typeof _options.server_log === 'function') {
+                    if (typeof _options.server_log === 'function' && result.status !== 503) {
                         _options.server_log('ChunkUploader error: ' + JSON.stringify(_chunkInfo) +
                         '\nXHR result  : ' + JSON.stringify(result) +
                         '\nBlob length : ' + _blob.size +

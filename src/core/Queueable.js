@@ -122,9 +122,11 @@ define('plupload/core/Queueable', [
 
             canRetry: false,
 
+            progressTimestamp: null,
 
             start: function() {
                 this.state = Queueable.PROCESSING;
+                this.progressTimestamp = null;
                 this.trigger('started');
             },
 

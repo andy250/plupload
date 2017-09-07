@@ -5782,9 +5782,11 @@ define('plupload/core/Queueable', [
 
             canRetry: false,
 
+            progressTimestamp: null,
 
             start: function() {
                 this.state = Queueable.PROCESSING;
+                this.progressTimestamp = null;
                 this.trigger('started');
             },
 
@@ -8047,8 +8049,22 @@ define('plupload/ChunkUploader', [
 
                 ChunkUploader.prototype.start.call(this);
 
+                if (_progressCheck) {
+                    clearInterval(_progressCheck);
+                }
+
                 self.getChunkUploadUrl(function (url) {
+
+                    if (_blob.size === 0) {
+                        return self.failed({
+                            req: url,
+                            response: 'File is gone: ' + _chunkInfo.filename,
+                            status: 410     // file is "gone" - probably removed or renamed - will retry couple of times and fail the whole file eventually
+                        });
+                    }
+
                     _xhr = new XMLHttpRequest();
+
                     if (_options.chunk_size && _options.assumed_upload_speed) {
                         _xhr.timeout = Math.floor(1000 * (_options.chunk_size / _options.assumed_upload_speed)); // round to milliseconds
                     }
@@ -8063,6 +8079,7 @@ define('plupload/ChunkUploader', [
                                 var now = new Date().getTime();
                                 if (self.progressTimestamp + 20000 < now) {
                                     clearInterval(_progressCheck);
+                                    self.stop();
                                     self.failed({
                                         req: url,
                                         response: 'Progress check freeze: ' + (now - self.progressTimestamp).toString(),
@@ -8083,7 +8100,8 @@ define('plupload/ChunkUploader', [
                             responseHeaders: this.getAllResponseHeaders()
                         };
 
-                        if (this.status >= 400) { // assume error
+                        if (this.status !== 200) { // assume error - anything other than 200 OK !! testing !!
+                            result.preventok = true;
                             return self.failed(result);
                         }
 
@@ -8141,7 +8159,6 @@ define('plupload/ChunkUploader', [
                         });
                     }
 
-
                     if (_options.multipart) {
                         formData = new FormData();
 
@@ -8157,6 +8174,13 @@ define('plupload/ChunkUploader', [
                     } else { // if no multipart, send as binary stream
                         if (Basic.isEmptyObj(_options.headers) || !_options.headers['content-type']) {
                             _xhr.setRequestHeader('content-type', 'application/octet-stream'); // binary stream header
+                        }
+
+                        try {
+                            if (typeof _options.server_log === 'function' && _blob.size === 0) {
+                                _options.server_log('Empty blob before sending! ' + JSON.stringify(_chunkInfo) + '\n================', 'ERROR');
+                            }
+                        } catch (err) {
                         }
 
                         _xhr.send(_blob);
@@ -8203,7 +8227,7 @@ define('plupload/ChunkUploader', [
 
             failed: function (result) {
                 try {
-                    if (typeof _options.server_log === 'function') {
+                    if (typeof _options.server_log === 'function' && result.status !== 503) {
                         _options.server_log('ChunkUploader error: ' + JSON.stringify(_chunkInfo) +
                         '\nXHR result  : ' + JSON.stringify(result) +
                         '\nBlob length : ' + _blob.size +
@@ -8282,7 +8306,7 @@ define('plupload/FileUploader', [
 	'plupload/core/Collection',
 	'plupload/core/Queueable',
 	'plupload/ChunkUploader'
-], function(Basic, Collection, Queueable, ChunkUploader) {
+], function (Basic, Collection, Queueable, ChunkUploader) {
 
 
 	function FileUploader(fileRef, queue) {
@@ -8327,7 +8351,7 @@ define('plupload/FileUploader', [
 			name: _file.name,
 
 
-			start: function(options) {
+			start: function (options) {
 				var self = this;
 				var up;
 
@@ -8348,10 +8372,11 @@ define('plupload/FileUploader', [
 			},
 
 
-			uploadChunk: function(seq) {
+			uploadChunk: function (seq) {
 				var self = this;
-				var up;
 				var chunk = self.chunkInfo(seq);
+				var up;
+				var blob;
 
 				// do not proceed for weird chunks
 				if (chunk.start < 0 || chunk.start >= _file.size) {
@@ -8365,14 +8390,16 @@ define('plupload/FileUploader', [
 					}
 				});
 
-				up = new ChunkUploader(_file.slice(chunk.start, chunk.end, _file.type), chunkUploaderOptions, chunk);
+				blob = _file.slice(chunk.start, chunk.end, _file.type);
+
+				up = new ChunkUploader(blob, chunkUploaderOptions, chunk);
 				chunk.uid = up.uid;
 
-				up.bind('progress', function(e) {
+				up.bind('progress', function (e) {
 					self.progress(calcProcessed(), _file.size);
 				});
 
-				up.bind('failed', function(e, result) {
+				up.bind('failed', function (e, result) {
 					_chunks.add(chunk.seq, Basic.extend({
 						state: Queueable.FAILED
 					}, chunk));
@@ -8381,11 +8408,12 @@ define('plupload/FileUploader', [
 						self.failed(result);
 					} else {
 						// re-read the file chunk?..
-						up.setBlob(_file.slice(chunk.start, chunk.end, _file.type));
+						blob = _file.slice(chunk.start, chunk.end, _file.type);
+						up.setBlob(blob);
 					}
 				});
 
-				up.bind('aborted', function(e, result) {
+				up.bind('aborted', function (e, result) {
 					if (Basic.inArray(result.status, [503, 520, 599]) > -1) {
 						// server unavialable
 						this.serverDisconnected();
@@ -8395,7 +8423,7 @@ define('plupload/FileUploader', [
 					}
 				});
 
-				up.bind('done', function(e, result) {
+				up.bind('done', function (e, result) {
 					_chunks.add(chunk.seq, Basic.extend({
 						state: Queueable.DONE
 					}, chunk));
@@ -8405,7 +8433,7 @@ define('plupload/FileUploader', [
 						self.progress(_file.size, _file.size);
 						self.done(result);
 					} else if (_chunkSize) {
-						Basic.delay(function() {
+						Basic.delay(function () {
 							var nc = getNextChunk();
 							if (nc < _totalChunks) {
 								self.uploadChunk(nc);
@@ -8414,7 +8442,7 @@ define('plupload/FileUploader', [
 					}
 				});
 
-				up.bind('completed', function() {
+				up.bind('completed', function () {
 					this.destroy();
 				});
 
@@ -8425,7 +8453,7 @@ define('plupload/FileUploader', [
 				queue.addItem(up);
 
 				// enqueue even more chunks if slots available
-				if (queue.countSpareSlots()) {
+				if (queue && queue.countSpareSlots()) {
 					var nc = getNextChunk();
 					if (nc < _totalChunks) {
 						self.uploadChunk(nc);
@@ -8435,8 +8463,8 @@ define('plupload/FileUploader', [
 				return true;
 			},
 
-			setOption: function(option, value) {
-				if (typeof(option) !== 'object' && !this._options.hasOwnProperty(option)) {
+			setOption: function (option, value) {
+				if (typeof (option) !== 'object' && !this._options.hasOwnProperty(option)) {
 					return;
 				}
 				FileUploader.prototype.setOption.apply(this, arguments);
@@ -8445,19 +8473,19 @@ define('plupload/FileUploader', [
 			chunkInfo: function (seq) {
 				var start = seq * _chunkSize;
 				var end = Math.min(start + _chunkSize, _file.size);
-				
+
 				return {
 					seq: seq,
 					start: start,
 					end: end,
 					size: end - start,
-					chunks: _totalChunks, 
+					chunks: _totalChunks,
 					filesize: _file.size,
 					filename: _file.relativePath || _file.name //relativePath is '' in e.g. IE
 				};
 			},
 
-			destroy: function() {
+			destroy: function () {
 				if (this.state !== Queueable.DESTROYED) {
 					_chunks.each(function (item) {
 						queue.removeItem(item.uid);
@@ -8472,7 +8500,7 @@ define('plupload/FileUploader', [
 		function calcProcessed() {
 			var processed = 0;
 
-			_chunks.each(function(item) {
+			_chunks.each(function (item) {
 				var chunk = queue.getItem(item.uid);
 				processed += chunk ? (chunk.processed || 0) : 0;
 			});
@@ -8484,7 +8512,7 @@ define('plupload/FileUploader', [
 		function getDoneCount() {
 			var done = 0;
 
-			_chunks.each(function(item) {
+			_chunks.each(function (item) {
 				if (item.state === Queueable.DONE) {
 					done++;
 				}
