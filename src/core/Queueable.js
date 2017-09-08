@@ -132,6 +132,7 @@ define('plupload/core/Queueable', [
 
 
             pause: function() {
+                this.progressTimestamp = null;
                 this.processed = this.percent = 0; // by default reset all progress
                 this.loaded = this.processed; // for backward compatibility
 
@@ -147,6 +148,7 @@ define('plupload/core/Queueable', [
 
 
             stop: function() {
+                this.progressTimestamp = null;
                 this.processed = this.percent = 0;
                 this.loaded = this.processed; // for backward compatibility
 
@@ -174,6 +176,7 @@ define('plupload/core/Queueable', [
 
 
             failed: function(result) {
+                this.progressTimestamp = null;
                 this.processed = this.percent = 0; // reset the progress
                 this.loaded = this.processed; // for backward compatibility
                 this.failedBytes = this.total;

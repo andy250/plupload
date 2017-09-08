@@ -75,14 +75,15 @@ define('plupload/ChunkUploader', [
                         };
 
                         _progressCheck = setInterval(function () {
-                            if (self.state !== Queueable.PAUSED && self.progressTimestamp) {
+                            var stamp = self.progressTimestamp;
+                            if (self.state !== Queueable.PAUSED && stamp != null) {
                                 var now = new Date().getTime();
-                                if (self.progressTimestamp + 20000 < now) {
+                                if (stamp != null && (stamp + 20000 < now)) {
                                     clearInterval(_progressCheck);
                                     self.stop();
                                     self.failed({
                                         req: url,
-                                        response: 'Progress check freeze: ' + (now - self.progressTimestamp).toString(),
+                                        response: 'Progress check freeze: ' + (now - stamp).toString(),
                                         status: 503     // service unavailable - will cause "server disconnected"
                                     });
                                 }
@@ -121,6 +122,7 @@ define('plupload/ChunkUploader', [
                             }
                         }
 
+                        _chunkInfo.xhrdone = true;
                         self.done(result);
                     };
 
@@ -184,6 +186,7 @@ define('plupload/ChunkUploader', [
                         }
 
                         _xhr.send(_blob);
+                        _chunkInfo.xhrsent = true;
                     }
                 });
             },

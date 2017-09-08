@@ -5792,6 +5792,7 @@ define('plupload/core/Queueable', [
 
 
             pause: function() {
+                this.progressTimestamp = null;
                 this.processed = this.percent = 0; // by default reset all progress
                 this.loaded = this.processed; // for backward compatibility
 
@@ -5807,6 +5808,7 @@ define('plupload/core/Queueable', [
 
 
             stop: function() {
+                this.progressTimestamp = null;
                 this.processed = this.percent = 0;
                 this.loaded = this.processed; // for backward compatibility
 
@@ -5834,6 +5836,7 @@ define('plupload/core/Queueable', [
 
 
             failed: function(result) {
+                this.progressTimestamp = null;
                 this.processed = this.percent = 0; // reset the progress
                 this.loaded = this.processed; // for backward compatibility
                 this.failedBytes = this.total;
@@ -8075,14 +8078,15 @@ define('plupload/ChunkUploader', [
                         };
 
                         _progressCheck = setInterval(function () {
-                            if (self.state !== Queueable.PAUSED && self.progressTimestamp) {
+                            var stamp = self.progressTimestamp;
+                            if (self.state !== Queueable.PAUSED && stamp != null) {
                                 var now = new Date().getTime();
-                                if (self.progressTimestamp + 20000 < now) {
+                                if (stamp != null && (stamp + 20000 < now)) {
                                     clearInterval(_progressCheck);
                                     self.stop();
                                     self.failed({
                                         req: url,
-                                        response: 'Progress check freeze: ' + (now - self.progressTimestamp).toString(),
+                                        response: 'Progress check freeze: ' + (now - stamp).toString(),
                                         status: 503     // service unavailable - will cause "server disconnected"
                                     });
                                 }
@@ -8121,6 +8125,7 @@ define('plupload/ChunkUploader', [
                             }
                         }
 
+                        _chunkInfo.xhrdone = true;
                         self.done(result);
                     };
 
@@ -8184,6 +8189,7 @@ define('plupload/ChunkUploader', [
                         }
 
                         _xhr.send(_blob);
+                        _chunkInfo.xhrsent = true;
                     }
                 });
             },
@@ -8429,7 +8435,13 @@ define('plupload/FileUploader', [
 					}, chunk));
 
 					// if (calcProcessed() >= _file.size) {
-					if (getDoneCount() >= _totalChunks) {
+					var doneCount = getDoneCount();
+					if (doneCount >= _totalChunks) {
+						if (chunkUploaderOptions && chunkUploaderOptions.server_log) {
+							chunkUploaderOptions.server_log('chunks : ' + _totalChunks + ' done: ' + doneCount + ' _chunks: ' + _chunks.count() + 
+								' xhrs: ' + JSON.stringify(getXhrStatus()),
+								'DEBUG');
+						}
 						self.progress(_file.size, _file.size);
 						self.done(result);
 					} else if (_chunkSize) {
@@ -8506,6 +8518,23 @@ define('plupload/FileUploader', [
 			});
 
 			return processed;
+		}
+
+		function getXhrStatus() {
+			var done = 0;
+			var sent = 0;
+			_chunks.each(function (item) {
+				if (item.xhrsent) {
+					sent++;
+				}
+				if (item.xhrdone) {
+					done++;
+				}
+			});
+			return {
+				sent: sent,
+				done: done
+			};
 		}
 
 

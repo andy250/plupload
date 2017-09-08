@@ -143,7 +143,13 @@ define('plupload/FileUploader', [
 					}, chunk));
 
 					// if (calcProcessed() >= _file.size) {
-					if (getDoneCount() >= _totalChunks) {
+					var doneCount = getDoneCount();
+					if (doneCount >= _totalChunks) {
+						if (queue && queue._options && queue._options.server_log) {
+							queue._options.server_log('chunks : ' + _totalChunks + ' done: ' + doneCount + ' _chunks: ' + _chunks.count() + 
+								' xhrs: ' + JSON.stringify(getXhrStatus()),
+								'DEBUG');
+						}
 						self.progress(_file.size, _file.size);
 						self.done(result);
 					} else if (_chunkSize) {
@@ -220,6 +226,23 @@ define('plupload/FileUploader', [
 			});
 
 			return processed;
+		}
+
+		function getXhrStatus() {
+			var done = 0;
+			var sent = 0;
+			_chunks.each(function (item) {
+				if (item.xhrsent) {
+					sent++;
+				}
+				if (item.xhrdone) {
+					done++;
+				}
+			});
+			return {
+				sent: sent,
+				done: done
+			};
 		}
 
 
