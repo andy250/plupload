@@ -55,6 +55,8 @@ define('plupload/ChunkUploader', [
 
                 self.getChunkUploadUrl(function (url) {
 
+                    _chunkInfo.url = url;
+
                     if (_blob.size === 0) {
                         return self.failed({
                             req: url,

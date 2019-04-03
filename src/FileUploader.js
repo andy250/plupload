@@ -146,8 +146,8 @@ define('plupload/FileUploader', [
 					var doneCount = getDoneCount();
 					if (doneCount >= _totalChunks) {
 						if (queue && queue._options && queue._options.server_log) {
-							queue._options.server_log('chunks : ' + _totalChunks + ' done: ' + doneCount + ' _chunks: ' + _chunks.count() + 
-								' xhrs: ' + JSON.stringify(getXhrStatus()),
+							queue._options.server_log('FileUploader XHR report: ' + _totalChunks + ' done: ' + doneCount + ' _chunks: ' + _chunks.count() + 
+								' xhrs: ' + JSON.stringify(getXhrStatus()) + '\n================',
 								'DEBUG');
 						}
 						self.progress(_file.size, _file.size);
@@ -231,6 +231,7 @@ define('plupload/FileUploader', [
 		function getXhrStatus() {
 			var done = 0;
 			var sent = 0;
+			var url = null;
 			_chunks.each(function (item) {
 				if (item.xhrsent) {
 					sent++;
@@ -238,10 +239,12 @@ define('plupload/FileUploader', [
 				if (item.xhrdone) {
 					done++;
 				}
+				url = item.url;
 			});
 			return {
 				sent: sent,
-				done: done
+				done: done,
+				url: url
 			};
 		}
 

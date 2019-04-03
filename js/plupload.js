@@ -8058,6 +8058,8 @@ define('plupload/ChunkUploader', [
 
                 self.getChunkUploadUrl(function (url) {
 
+                    _chunkInfo.url = url;
+
                     if (_blob.size === 0) {
                         return self.failed({
                             req: url,
@@ -8437,9 +8439,9 @@ define('plupload/FileUploader', [
 					// if (calcProcessed() >= _file.size) {
 					var doneCount = getDoneCount();
 					if (doneCount >= _totalChunks) {
-						if (chunkUploaderOptions && chunkUploaderOptions.server_log) {
-							chunkUploaderOptions.server_log('chunks : ' + _totalChunks + ' done: ' + doneCount + ' _chunks: ' + _chunks.count() + 
-								' xhrs: ' + JSON.stringify(getXhrStatus()),
+						if (queue && queue._options && queue._options.server_log) {
+							queue._options.server_log('FileUploader XHR report: ' + _totalChunks + ' done: ' + doneCount + ' _chunks: ' + _chunks.count() + 
+								' xhrs: ' + JSON.stringify(getXhrStatus()) + '\n================',
 								'DEBUG');
 						}
 						self.progress(_file.size, _file.size);
@@ -8523,6 +8525,7 @@ define('plupload/FileUploader', [
 		function getXhrStatus() {
 			var done = 0;
 			var sent = 0;
+			var url = null;
 			_chunks.each(function (item) {
 				if (item.xhrsent) {
 					sent++;
@@ -8530,10 +8533,12 @@ define('plupload/FileUploader', [
 				if (item.xhrdone) {
 					done++;
 				}
+				url = item.url;
 			});
 			return {
 				sent: sent,
-				done: done
+				done: done,
+				url: url
 			};
 		}
 
@@ -10711,13 +10716,15 @@ define('plupload/Uploader', [
 
 			// initialize file pickers - there can be many
 			if (self.getOption('browse_button')) {
-				plupload.each(self.getOption('browse_button'), function(el) {
+				plupload.each(self.getOption('browse_button'), function(bb) {
+					var el = bb.el;
 					queue.push(function(cb) {
 						var fileInput = new FileInput(plupload.extend({}, options, {
 							accept: self.getOption('filters').mime_types,
-							name: self.getOption('file_data_name'),
-							multiple: self.getOption('multi_selection'),
-							container: self.getOption('container'),
+							name: typeof bb.name !== 'undefined' ? bb.name : self.getOption('file_data_name'),
+							directory: !!bb.directory,
+							multiple: typeof bb.multiple !== 'undefined' ? bb.multiple : self.getOption('multi_selection'),
+							container: typeof bb.container !== 'undefined' ? bb.container : self.getOption('container'),
 							browse_button: el
 						}));
 
@@ -11041,7 +11048,7 @@ define('plupload/Uploader', [
 				}
 				break;
 
-				// options that require reinitialisation
+			// options that require reinitialisation
 			case 'container':
 			case 'browse_button':
 			case 'drop_element':
@@ -11231,6 +11238,8 @@ define("moxie/runtime/html5/Runtime", [
 				select_folder: function() {
 					return I.can('select_file') && (
 						Env.browser === 'Chrome' && Env.verComp(Env.version, 21, '>=') ||
+						Env.browser === 'Edge' ||
+						Env.browser === 'Opera' ||
 						Env.browser === 'Firefox' && Env.verComp(Env.version, 42, '>=') // https://developer.mozilla.org/en-US/Firefox/Releases/42
 					);
 				},
@@ -11379,7 +11388,7 @@ define("moxie/runtime/html5/file/FileInput", [
 
 				shimContainer.innerHTML = '<input id="' + I.uid +'" type="file" style="font-size:999px;opacity:0;"' +
 					(_options.multiple && I.can('select_multiple') ? 'multiple' : '') + 
-					(_options.directory && I.can('select_folder') ? 'webkitdirectory directory' : '') + // Chrome 11+
+					(_options.directory && I.can('select_folder') ? 'webkitdirectory mozdirectory directory' : '') + 
 					(mimes ? ' accept="' + mimes.join(',') + '"' : '') + ' />';
 
 				input = Dom.get(I.uid);

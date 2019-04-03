@@ -947,13 +947,15 @@ define('plupload/Uploader', [
 
 			// initialize file pickers - there can be many
 			if (self.getOption('browse_button')) {
-				plupload.each(self.getOption('browse_button'), function(el) {
+				plupload.each(self.getOption('browse_button'), function(bb) {
+					var el = bb.el;
 					queue.push(function(cb) {
 						var fileInput = new FileInput(plupload.extend({}, options, {
 							accept: self.getOption('filters').mime_types,
-							name: self.getOption('file_data_name'),
-							multiple: self.getOption('multi_selection'),
-							container: self.getOption('container'),
+							name: typeof bb.name !== 'undefined' ? bb.name : self.getOption('file_data_name'),
+							directory: !!bb.directory,
+							multiple: typeof bb.multiple !== 'undefined' ? bb.multiple : self.getOption('multi_selection'),
+							container: typeof bb.container !== 'undefined' ? bb.container : self.getOption('container'),
 							browse_button: el
 						}));
 
@@ -1277,7 +1279,7 @@ define('plupload/Uploader', [
 				}
 				break;
 
-				// options that require reinitialisation
+			// options that require reinitialisation
 			case 'container':
 			case 'browse_button':
 			case 'drop_element':
