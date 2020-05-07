@@ -126,7 +126,7 @@ define('plupload/core/Queueable', [
 
             start: function() {
                 this.state = Queueable.PROCESSING;
-                this.progressTimestamp = null;
+                this.progressTimestamp = new Date().getTime();
                 this.trigger('started');
             },
 
@@ -143,6 +143,7 @@ define('plupload/core/Queueable', [
             
             resume: function () {
                 this.state = Queueable.PROCESSING;
+                this.progressTimestamp = new Date().getTime();
                 this.trigger('resumed');
             },
 

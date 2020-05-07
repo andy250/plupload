@@ -30,6 +30,7 @@ define('plupload/ChunkUploader', [
         var _blob = blob;
         var _chunkInfo = chunkInfo;
         var _progressCheck = null;
+        var _timeout = 20000; // 20 seconds timeout on OPTIONS requests and 20 seconds of inactivity of a POST request (POST request can take much longer)
 
         Queueable.call(this);
 
@@ -80,7 +81,7 @@ define('plupload/ChunkUploader', [
                             var stamp = self.progressTimestamp;
                             if (self.state !== Queueable.PAUSED && stamp != null) {
                                 var now = new Date().getTime();
-                                if (stamp != null && (stamp + 20000 < now)) {
+                                if (stamp != null && (stamp + _timeout < now)) {
                                     clearInterval(_progressCheck);
                                     self.stop();
                                     self.failed({
