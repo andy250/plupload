@@ -2185,21 +2185,6 @@ define('moxie/core/EventTarget', [
 			}
 		},
 
-		constructEventObject: function (sourceEvent) {
-			var eObject = {};
-			if (sourceEvent) {
-				if (sourceEvent.total && sourceEvent.loaded) { // progress event
-					eObject.total = sourceEvent.total;
-					eObject.loaded = sourceEvent.loaded;
-					eObject.delta = sourceEvent.delta || 0;
-					eObject.failedBytes = sourceEvent.failedBytes || 0;
-				}
-				eObject.async = sourceEvent.async || false;
-			}
-			return eObject;
-		},
-
-
 		/**
 		Dispatch the event
 
@@ -2208,54 +2193,49 @@ define('moxie/core/EventTarget', [
 		@param {Mixed} [...] Variable number of arguments to be passed to a handlers
 		@return {Boolean} true by default and false if any handler returned false
 		*/
-		dispatchEvent: function (eventType) {
-			var uid,
-				list,
-				args,
-				tmpEvt,
-				evt = null,
-				result = true,
-				localEventName = eventType,
-				undef;
+		dispatchEvent: function(type) {
+			var uid, list, args, tmpEvt, evt = {}, result = true, undef;
 
-			if (Basic.typeOf(localEventName) !== 'string') {
+			if (Basic.typeOf(type) !== 'string') {
 				// we can't use original object directly (because of Silverlight)
-				tmpEvt = localEventName;
+				tmpEvt = type;
+
 				if (Basic.typeOf(tmpEvt.type) === 'string') {
-					localEventName = tmpEvt.type;
-					evt = this.constructEventObject(tmpEvt);
+					type = tmpEvt.type;
+
+					if (tmpEvt.total !== undef && tmpEvt.loaded !== undef) { // progress event
+						evt.total = tmpEvt.total;
+						evt.loaded = tmpEvt.loaded;
+					}
+					evt.async = tmpEvt.async || false;
 				} else {
 					throw new x.EventException(x.EventException.UNSPECIFIED_EVENT_TYPE_ERR);
 				}
 			}
 
-			// localEventName is converted to string
-
 			// check if event is meant to be dispatched on an object having specific uid
-			if (localEventName.indexOf('::') !== -1) {
-				(function (arr) {
+			if (type.indexOf('::') !== -1) {
+				(function(arr) {
 					uid = arr[0];
-					localEventName = arr[1];
-				}(localEventName.split('::')));
+					type = arr[1];
+				}(type.split('::')));
 			} else {
 				uid = this.uid;
 			}
 
-			localEventName = localEventName.toLowerCase();
-			list = eventpool[uid] && eventpool[uid][localEventName];
+			type = type.toLowerCase();
+
+			list = eventpool[uid] && eventpool[uid][type];
 
 			if (list) {
 				// sort event list by prority
-				list.sort(function (a, b) { return b.priority - a.priority; });
+				list.sort(function(a, b) { return b.priority - a.priority; });
 
 				args = [].slice.call(arguments);
 
 				// first argument will be pseudo-event object
 				args.shift();
-				if (!evt) {
-					evt = this.constructEventObject(tmpEvt);
-				}
-				evt.type = localEventName;
+				evt.type = type;
 				args.unshift(evt);
 
 				if (MXI_DEBUG && Env.debug.events) {
@@ -2264,24 +2244,24 @@ define('moxie/core/EventTarget', [
 
 				// Dispatch event to all listeners
 				var queue = [];
-				Basic.each(list, function (handler) {
+				Basic.each(list, function(handler) {
 					// explicitly set the target, otherwise events fired from shims do not get it
 					args[0].target = handler.scope;
 					// if event is marked as async, detach the handler
 					if (evt.async) {
-						queue.push(function (cb) {
-							setTimeout(function () {
+						queue.push(function(cb) {
+							setTimeout(function() {
 								cb(handler.fn.apply(handler.scope, args) === false);
 							}, 1);
 						});
 					} else {
-						queue.push(function (cb) {
+						queue.push(function(cb) {
 							cb(handler.fn.apply(handler.scope, args) === false); // if handler returns false stop propagation
 						});
 					}
 				});
 				if (queue.length) {
-					Basic.inSeries(queue, function (err) {
+					Basic.inSeries(queue, function(err) {
 						result = !err;
 					});
 				}
@@ -4137,7 +4117,7 @@ define('moxie/file/File', [
 	@param {String} ruid Unique id of the runtime, to which this blob belongs to
 	@param {Object} file Object "Native" file object, as it is represented in the runtime
 	*/
-	function File(ruid, file, relativePath) {
+	function File(ruid, file) {
 		if (!file) { // avoid extra errors in case we overlooked something
 			file = {};
 		}
@@ -4150,15 +4130,13 @@ define('moxie/file/File', [
 
 		// sanitize file name or generate new one
 		var name;
-		if (relativePath) {
-			name = relativePath.replace(/\\/g, '/').replace(/^\//, '');
-		} else if (file.name) {
+		if (file.name) {
 			name = file.name.replace(/\\/g, '/');
 			name = name.substr(name.lastIndexOf('/') + 1);
 		} else if (this.type) {
 			var prefix = this.type.split('/')[0];
 			name = Basic.guid((prefix !== '' ? prefix : 'file') + '_');
-
+			
 			if (Mime.extensions[this.type]) {
 				name += '.' + Mime.extensions[this.type][0]; // append proper extension if possible
 			}
@@ -7918,15 +7896,6 @@ define("moxie/xhr/XMLHttpRequest", [
 					loadEnd();
 				});
 
-				_xhr.bind('Timeout', function (e) {
-					_error_flag = true;
-					_p('readyState', XMLHttpRequest.DONE);
-					self.dispatchEvent('readystatechange');
-					_upload_complete_flag = true;
-					self.dispatchEvent(e);
-					loadEnd();
-				});
-
 				runtime.exec.call(_xhr, 'XMLHttpRequest', 'send', {
 					url: _url,
 					method: _method,
@@ -7938,7 +7907,6 @@ define("moxie/xhr/XMLHttpRequest", [
 					encoding: _encoding,
 					responseType: self.responseType,
 					withCredentials: self.withCredentials,
-					timeout: self.timeout,
 					options: _options
 				}, data);
 			}
@@ -11187,115 +11155,88 @@ define("moxie/runtime/html5/Runtime", [
 	"moxie/core/Exceptions",
 	"moxie/runtime/Runtime",
 	"moxie/core/utils/Env"
-], function (Basic, x, Runtime, Env) {
-
+], function(Basic, x, Runtime, Env) {
+	
 	var type = "html5", extensions = {};
-
-	var webkitDirectorySupport = (function () {
-		try {
-			var elem = document.createElement('input'),
-				dir = 'directory',
-				domPrefixes = ["", "moz", "o", "ms", "webkit"],
-				prefix;
-
-			elem.type = 'file';
-
-			for (prefix in domPrefixes) {
-				if (domPrefixes[prefix] + dir in elem) {
-					return true;
-				}
-			}
-
-			return false;
-		} catch (err) {
-			return false;
-		}
-	})();
-
+	
 	function Html5Runtime(options) {
 		var I = this
-			, Test = Runtime.capTest
-			, True = Runtime.capTrue
-			;
+		, Test = Runtime.capTest
+		, True = Runtime.capTrue
+		;
 
 		var caps = Basic.extend({
-			access_binary: Test(window.FileReader || window.File && window.File.getAsDataURL),
-			access_image_binary: function () {
-				return I.can('access_binary') && !!extensions.Image;
-			},
-			display_media: Test(
-				(Env.can('create_canvas') || Env.can('use_data_uri_over32kb')) &&
-				defined('moxie/image/Image')
-			),
-			do_cors: Test(window.XMLHttpRequest && 'withCredentials' in new XMLHttpRequest()),
-			drag_and_drop: Test(function () {
-				// this comes directly from Modernizr: http://www.modernizr.com/
-				var div = document.createElement('div');
-				// IE has support for drag and drop since version 5, but doesn't support dropping files from desktop
-				return (('draggable' in div) || ('ondragstart' in div && 'ondrop' in div)) &&
-					(Env.browser !== 'IE' || Env.verComp(Env.version, 9, '>'));
-			}()),
-			filter_by_extension: Test(function () { // if you know how to feature-detect this, please suggest
-				return !(
-					(Env.browser === 'Chrome' && Env.verComp(Env.version, 28, '<')) ||
-					(Env.browser === 'IE' && Env.verComp(Env.version, 10, '<')) ||
-					(Env.browser === 'Safari' && Env.verComp(Env.version, 7, '<')) ||
-					(Env.browser === 'Firefox' && Env.verComp(Env.version, 37, '<'))
-				);
-			}()),
-			return_response_headers: True,
-			return_response_type: function (responseType) {
-				if (responseType === 'json' && !!window.JSON) { // we can fake this one even if it's not supported
-					return true;
-				}
-				return Env.can('return_response_type', responseType);
-			},
-			return_status_code: True,
-			report_upload_progress: Test(window.XMLHttpRequest && new XMLHttpRequest().upload),
-			resize_image: function () {
-				return I.can('access_binary') && Env.can('create_canvas');
-			},
-			select_file: function () {
-				return Env.can('use_fileinput') && window.File;
-			},
-			select_folder: function () {
-				return I.can('select_file') && (
-					webkitDirectorySupport === true ||
-					Env.browser === 'Chrome' && Env.verComp(Env.version, 21, '>=') ||
-					Env.browser === 'Edge' ||
-					Env.browser === 'Opera' ||
-					Env.browser === 'Firefox' && Env.verComp(Env.version, 42, '>=') // https://developer.mozilla.org/en-US/Firefox/Releases/42
-				);
-			},
-			select_multiple: function () {
-        return I.can('select_file');
-          // it is/was? buggy on Safari Windows and iOS
-          // --AK 2020.05.07: removed this because without "multiple" attribute ios compresses videos immedaitely
-          // when they are chosen (before upload)
-          /* &&
-					!(Env.browser === 'Safari' && Env.os === 'Windows') &&
-					!(Env.os === 'iOS' && Env.verComp(Env.osVersion, "7.0.0", '>') && Env.verComp(Env.osVersion, "8.0.0", '<')); */
-			},
-			send_binary_string: Test(window.XMLHttpRequest && (new XMLHttpRequest().sendAsBinary || (window.Uint8Array && window.ArrayBuffer))),
-			send_custom_headers: Test(window.XMLHttpRequest),
-			send_multipart: function () {
-				return !!(window.XMLHttpRequest && new XMLHttpRequest().upload && window.FormData) || I.can('send_binary_string');
-			},
-			slice_blob: Test(window.File && (File.prototype.mozSlice || File.prototype.webkitSlice || File.prototype.slice)),
-			stream_upload: function () {
-				return I.can('slice_blob') && I.can('send_multipart');
-			},
-			summon_file_dialog: function () { // yeah... some dirty sniffing here...
-				return I.can('select_file') && (
-					(Env.browser === 'Firefox' && Env.verComp(Env.version, 4, '>=')) ||
-					(Env.browser === 'Opera' && Env.verComp(Env.version, 12, '>=')) ||
-					(Env.browser === 'IE' && Env.verComp(Env.version, 10, '>=')) ||
-					!!~Basic.inArray(Env.browser, ['Chrome', 'Safari', 'Edge'])
-				);
-			},
-			upload_filesize: True,
-			use_http_method: True
-		},
+				access_binary: Test(window.FileReader || window.File && window.File.getAsDataURL),
+				access_image_binary: function() {
+					return I.can('access_binary') && !!extensions.Image;
+				},
+				display_media: Test(
+					(Env.can('create_canvas') || Env.can('use_data_uri_over32kb')) && 
+					defined('moxie/image/Image')
+				),
+				do_cors: Test(window.XMLHttpRequest && 'withCredentials' in new XMLHttpRequest()),
+				drag_and_drop: Test(function() {
+					// this comes directly from Modernizr: http://www.modernizr.com/
+					var div = document.createElement('div');
+					// IE has support for drag and drop since version 5, but doesn't support dropping files from desktop
+					return (('draggable' in div) || ('ondragstart' in div && 'ondrop' in div)) && 
+						(Env.browser !== 'IE' || Env.verComp(Env.version, 9, '>'));
+				}()),
+				filter_by_extension: Test(function() { // if you know how to feature-detect this, please suggest
+					return !(
+						(Env.browser === 'Chrome' && Env.verComp(Env.version, 28, '<')) || 
+						(Env.browser === 'IE' && Env.verComp(Env.version, 10, '<')) || 
+						(Env.browser === 'Safari' && Env.verComp(Env.version, 7, '<')) ||
+						(Env.browser === 'Firefox' && Env.verComp(Env.version, 37, '<'))
+					);
+				}()),
+				return_response_headers: True,
+				return_response_type: function(responseType) {
+					if (responseType === 'json' && !!window.JSON) { // we can fake this one even if it's not supported
+						return true;
+					} 
+					return Env.can('return_response_type', responseType);
+				},
+				return_status_code: True,
+				report_upload_progress: Test(window.XMLHttpRequest && new XMLHttpRequest().upload),
+				resize_image: function() {
+					return I.can('access_binary') && Env.can('create_canvas');
+				},
+				select_file: function() {
+					return Env.can('use_fileinput') && window.File;
+				},
+				select_folder: function() {
+					return I.can('select_file') && (
+						Env.browser === 'Chrome' && Env.verComp(Env.version, 21, '>=') ||
+						Env.browser === 'Firefox' && Env.verComp(Env.version, 42, '>=') // https://developer.mozilla.org/en-US/Firefox/Releases/42
+					);
+				},
+				select_multiple: function() {
+					// it is buggy on Safari Windows and iOS
+					return I.can('select_file') &&
+						!(Env.browser === 'Safari' && Env.os === 'Windows') &&
+						!(Env.os === 'iOS' && Env.verComp(Env.osVersion, "7.0.0", '>') && Env.verComp(Env.osVersion, "8.0.0", '<'));
+				},
+				send_binary_string: Test(window.XMLHttpRequest && (new XMLHttpRequest().sendAsBinary || (window.Uint8Array && window.ArrayBuffer))),
+				send_custom_headers: Test(window.XMLHttpRequest),
+				send_multipart: function() {
+					return !!(window.XMLHttpRequest && new XMLHttpRequest().upload && window.FormData) || I.can('send_binary_string');
+				},
+				slice_blob: Test(window.File && (File.prototype.mozSlice || File.prototype.webkitSlice || File.prototype.slice)),
+				stream_upload: function(){
+					return I.can('slice_blob') && I.can('send_multipart');
+				},
+				summon_file_dialog: function() { // yeah... some dirty sniffing here...
+					return I.can('select_file') && (
+						(Env.browser === 'Firefox' && Env.verComp(Env.version, 4, '>=')) ||
+						(Env.browser === 'Opera' && Env.verComp(Env.version, 12, '>=')) ||
+						(Env.browser === 'IE' && Env.verComp(Env.version, 10, '>=')) ||
+						!!~Basic.inArray(Env.browser, ['Chrome', 'Safari', 'Edge'])
+					);
+				},
+				upload_filesize: True,
+				use_http_method: True
+			}, 
 			arguments[2]
 		);
 
@@ -11304,12 +11245,12 @@ define("moxie/runtime/html5/Runtime", [
 
 		Basic.extend(this, {
 
-			init: function () {
+			init : function() {
 				this.trigger("Init");
 			},
 
-			destroy: (function (destroy) { // extend default destroy method
-				return function () {
+			destroy: (function(destroy) { // extend default destroy method
+				return function() {
 					destroy.call(I);
 					destroy = I = null;
 				};
@@ -11415,8 +11356,8 @@ define("moxie/runtime/html5/file/FileInput", [
 
 				shimContainer.innerHTML = '<input id="' + I.uid +'" type="file" style="font-size:999px;opacity:0;"' +
 					(_options.multiple && I.can('select_multiple') ? 'multiple' : '') + 
-					(_options.directory && I.can('select_folder') ? 'webkitdirectory mozdirectory directory' : '') + 
-					((mimes && mimes.length) ? ' accept="' + mimes.join(',') + '"' : '') + ' />';
+					(_options.directory && I.can('select_folder') ? 'webkitdirectory directory' : '') + // Chrome 11+
+					(mimes ? ' accept="' + mimes.join(',') + '"' : '') + ' />';
 
 				input = Dom.get(I.uid);
 
@@ -11494,7 +11435,7 @@ define("moxie/runtime/html5/file/FileInput", [
 							relativePath = '/' + file.webkitRelativePath.replace(/^\//, '');
 						}
 						
-						file = new File(I.uid, file, file.webkitRelativePath);
+						file = new File(I.uid, file);
 						file.relativePath = relativePath;
 
 						comp.files.push(file);
@@ -11531,13 +11472,10 @@ define("moxie/runtime/html5/file/FileInput", [
 
 				switch (name) {
 					case 'accept':
-            var mimes = null;
 						if (value) {
-							mimes = value.mimes || Mime.extList2mimes(value, I.can('filter_by_extension'));
-            }
-            if (mimes && mimes.length) {
-              input.setAttribute('accept', mimes.join(','));
-            } else {
+							var mimes = value.mimes || Mime.extList2mimes(value, I.can('filter_by_extension'));
+							input.setAttribute('accept', mimes.join(','));
+						} else {
 							input.removeAttribute('accept');
 						}
 						break;
@@ -11703,7 +11641,7 @@ define("moxie/runtime/html5/file/FileDrop", [
 
 		function _addFile(file, relativePath) {
 			if (_isAcceptable(file)) {
-				var fileObj = new File(_ruid, file, relativePath);
+				var fileObj = new File(_ruid, file);
 				fileObj.relativePath = relativePath || '';
 				_files.push(fileObj);
 			}
@@ -11991,12 +11929,6 @@ define("moxie/runtime/html5/xhr/XMLHttpRequest", [
 						target.trigger(e);
 					});
 
-					if ('timeout' in _xhr && meta.timeout) {
-						_xhr.addEventListener('timeout', function (e) {
-							target.trigger(e);
-						});
-					}
-
 					_xhr.upload.addEventListener('progress', function(e) {
 						target.trigger({
 							type: 'UploadProgress',
@@ -12073,11 +12005,6 @@ define("moxie/runtime/html5/xhr/XMLHttpRequest", [
 					} else {
 						_xhr.responseType = meta.responseType;
 					}
-				}
-
-				// timeout
-				if ('timeout' in _xhr && meta.timeout) {
-					_xhr.timeout = meta.timeout;
 				}
 
 				// send ...
